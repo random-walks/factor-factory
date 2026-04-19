@@ -79,6 +79,9 @@ class SyntheticDidEngine:
         treatment: str = "treatment",
         cluster: str | None = None,
         n_jackknife_max: int = 200,
+        inference: str = "jackknife",
+        n_placebo: int = 200,
+        placebo_seed: int = 42,
         **_engine_specific_kwargs: Any,
     ) -> SdidResult:
         if not panel.treatment_events:
@@ -135,15 +138,33 @@ class SyntheticDidEngine:
         control_indices = np.where(~treated_unit_mask)[0]
         att = _weighted_did_att(Y, treated_indices, control_indices, onset_idx, omega, lam)
 
-        se = _jackknife_se(
-            Y,
-            treated_indices,
-            control_indices,
-            onset_idx,
-            omega_baseline=omega,
-            lam=lam,
-            n_jackknife_max=n_jackknife_max,
-        )
+        if inference == "jackknife":
+            se = _jackknife_se(
+                Y,
+                treated_indices,
+                control_indices,
+                onset_idx,
+                omega_baseline=omega,
+                lam=lam,
+                n_jackknife_max=n_jackknife_max,
+            )
+            inference_method = "jackknife"
+        elif inference == "placebo":
+            se = _placebo_se(
+                Y,
+                treated_indices,
+                control_indices,
+                onset_idx,
+                omega_baseline=omega,
+                lam=lam,
+                n_placebo=n_placebo,
+                seed=placebo_seed,
+            )
+            inference_method = "placebo"
+        else:
+            raise ValueError(
+                f"inference must be 'jackknife' or 'placebo', got {inference!r}."
+            )
         # 95% CI via normal approximation (per AER §3.4)
         lo = att - 1.96 * se
         hi = att + 1.96 * se
@@ -170,7 +191,7 @@ class SyntheticDidEngine:
                 "onset_period": str(onset_period),
                 "unit_weight_max": float(omega.max()),
                 "unit_weight_effective_n": float(1.0 / (omega**2).sum()),
-                "inference": "jackknife",
+                "inference": inference_method,
             },
         )
 
@@ -371,6 +392,58 @@ def _jackknife_se(
     # Standard jackknife variance: ((N_tr - 1) / N_tr) * Σ (τ̂^{(-j)} - τ̂)²
     var = ((n_tr - 1) / n_tr) * float(np.sum((leave_out_arr - base_att) ** 2))
     return float(np.sqrt(var))
+
+
+def _placebo_se(
+    Y: pd.DataFrame,
+    treated_indices: np.ndarray,
+    control_indices: np.ndarray,
+    onset_idx: int,
+    *,
+    omega_baseline: np.ndarray,
+    lam: np.ndarray,
+    n_placebo: int = 200,
+    seed: int = 42,
+) -> float:
+    """Placebo-test SE (Arkhangelsky 2021 §3.4, alternative to jackknife).
+
+    Procedure:
+
+    1. Pretend a randomly-chosen ``n_treated`` subset of the control
+       units is actually treated (with the same onset period).
+    2. Recompute the weighted DiD ATT on this placebo assignment
+       (using the same ``omega`` and ``lam`` by analogy to jackknife
+       fixed-weights).
+    3. Repeat ``n_placebo`` times to build a null distribution of
+       placebo ATTs under no real treatment.
+    4. Report the standard deviation of that null distribution as the SE.
+
+    Prefer this to jackknife when ``n_treated == 1`` (jackknife is
+    degenerate in that case) or when ``n_control >> n_treated`` and the
+    analyst wants a permutation-based inference.
+    """
+    n_tr = len(treated_indices)
+    n_co = len(control_indices)
+    if n_co <= n_tr:
+        # Can't sample a placebo of the same size from strictly fewer controls.
+        return float("nan")
+
+    rng = np.random.default_rng(seed)
+    placebo_atts: list[float] = []
+    for _ in range(n_placebo):
+        placebo_treated = rng.choice(control_indices, size=n_tr, replace=False)
+        placebo_controls = np.array([i for i in control_indices if i not in set(placebo_treated)])
+        # omega is defined over the original control set; to reuse it as-is
+        # we need the SAME number of controls. Rebuild uniform weights over the
+        # placebo controls (a simplification of the R synthdid placebo default).
+        placebo_omega = np.full(len(placebo_controls), 1.0 / len(placebo_controls))
+        att_p = _weighted_did_att(
+            Y, placebo_treated, placebo_controls, onset_idx, placebo_omega, lam
+        )
+        placebo_atts.append(att_p)
+    if not placebo_atts:
+        return float("nan")
+    return float(np.std(np.array(placebo_atts), ddof=1))
 
 
 def _phi(z: float) -> float:

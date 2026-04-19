@@ -28,8 +28,16 @@ print(result.time_weights.head(10))   # time-averaging weights
 
 ```python
 result = estimate(panel, inference="jackknife")  # default for n_treated >= 2
-result = estimate(panel, inference="placebo")    # Batch 5 — placebo-based p-values
+result = estimate(panel, inference="placebo", n_placebo=200, placebo_seed=42)
 ```
+
+**Jackknife** (default): leave-one-treated-unit-out; matches the R
+`synthdid` default. Degenerate for `n_treated == 1`; falls back to a
+first-differences sigma estimate.
+
+**Placebo**: permute treatment assignment across control units,
+recompute the null distribution of ATT. Use when `n_treated == 1` or
+when the analyst wants permutation-based inference.
 
 The current jackknife holds `omega` and `lam` fixed across leave-one-out iterations (matches the R `synthdid` default). Re-solving the QPs per iteration is correct but ~N_tr × slower.
 
