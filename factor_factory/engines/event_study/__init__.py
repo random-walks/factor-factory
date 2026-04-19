@@ -13,9 +13,13 @@ from typing import Any
 from ...tidy.panel import Panel
 from .._registry import EngineRegistry
 from ._base import EventStudyEngine, EventStudyResult
+from .fama_french import FamaFrenchEngine
 from .market_adjusted import MarketAdjustedEngine
 
-_engines: dict[str, EventStudyEngine] = {"market_adjusted": MarketAdjustedEngine()}
+_engines: dict[str, EventStudyEngine] = {
+    "market_adjusted": MarketAdjustedEngine(),
+    "fama_french": FamaFrenchEngine(),
+}
 
 registry: EngineRegistry[EventStudyEngine] = EngineRegistry(_engines)
 

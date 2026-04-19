@@ -31,6 +31,19 @@ try:
 except ImportError:  # pragma: no cover
     pass
 
+# Sun-Abraham (2021) also via `differences` with event-study aggregation.
+try:
+    from .sun_abraham import SunAbrahamEngine
+
+    _engines["sa"] = SunAbrahamEngine()
+except ImportError:  # pragma: no cover
+    pass
+
+# Borusyak-Jaravel-Spiess (2024) imputation-based — numpy only, always available.
+from .borusyak_jaravel_spiess import BorusyakJaravelSpiessEngine  # noqa: E402
+
+_engines["bjs"] = BorusyakJaravelSpiessEngine()
+
 registry: EngineRegistry[DidEngine] = EngineRegistry(_engines)
 
 

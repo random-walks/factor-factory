@@ -72,8 +72,8 @@ def render_template(
                 f"{out_path} already exists. Pass overwrite=True to regenerate "
                 "(the section below `<!-- tearsheet:freeze -->` is preserved)."
             )
-        rendered = _splice_in_preserved_tail(out_path.read_text(), rendered)
-    out_path.write_text(rendered)
+        rendered = _splice_in_preserved_tail(out_path.read_text(encoding="utf-8"), rendered)
+    out_path.write_text(rendered, encoding="utf-8")
     return out_path
 
 
@@ -142,7 +142,7 @@ def _load_headline_artifacts(artifacts_dir: Path) -> list[dict[str, Any]]:
         if path.name.startswith("residual_diagnostics"):
             continue
         try:
-            payload = json.loads(path.read_text())
+            payload = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
         out.append(
@@ -159,7 +159,7 @@ def _load_did_results(artifacts_dir: Path) -> list[dict[str, Any]] | None:
     path = artifacts_dir / "did_results.json"
     if not path.exists():
         return None
-    payload = json.loads(path.read_text())
+    payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict) and "results" in payload:
         payload = payload["results"]
     if not isinstance(payload, list):
@@ -172,7 +172,7 @@ def _load_panel_metadata(data_dir: Path) -> dict[str, Any] | None:
         return None
     for meta in sorted(data_dir.glob("*.parquet.meta.json")):
         try:
-            return json.loads(meta.read_text())  # type: ignore[no-any-return]
+            return json.loads(meta.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
         except json.JSONDecodeError:
             continue
     return None
@@ -183,7 +183,7 @@ def _load_residual_diagnostics(artifacts_dir: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text())  # type: ignore[no-any-return]
+        return json.loads(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
     except json.JSONDecodeError:
         return None
 
@@ -230,4 +230,4 @@ def load_jellycell_toml(project_dir: Path) -> dict[str, Any]:
     path = project_dir / "jellycell.toml"
     if not path.exists():
         return {}
-    return tomllib.loads(path.read_text())
+    return tomllib.loads(path.read_text(encoding="utf-8"))

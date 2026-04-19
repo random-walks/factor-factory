@@ -1,6 +1,164 @@
 # Changelog
 
-## v0.1.0 — Phase 1 skeleton (in progress)
+All notable changes are documented here per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+**Versioning policy:** patch bumps are cheap. Lean toward frequent small
+releases. See [`docs/development/releasing.md`](docs/development/releasing.md)
+and [`.claude/skills/release-bump.md`](.claude/skills/release-bump.md) for
+the patch / minor / major rubric. Contract invariants (Panel / Engine
+Protocol / Tearsheet JSON) are documented in
+[`docs/reference/contracts.md`](docs/reference/contracts.md); breaking any
+of them requires a major bump post-1.0.
+
+## [Unreleased] — v1.0 roadmap sweep (batches 0–16)
+
+The `feat/v1.0-roadmap` branch merges 16 batches of additive work. No
+contract breaks; every change is backwards-compatible with v0.1.0.
+Tag this as `v1.0.0` at merge time.
+
+### Added
+
+**Claude Code infrastructure (batch 0)**
+
+- `.claude/` — agents (`engine-reviewer`, `contract-auditor`), commands
+  (`/bump`, `/engine-status`, `/contract-check`, `/add-engine`,
+  `/release-check`), skills (`engine-protocol`, `piggyback-first`,
+  `fixture-parity`, `release-bump`, `tearsheet-json-contract`),
+  `launch.json`, `settings.local.json`.
+- `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `Makefile`,
+  `scripts/preview_tearsheet.sh`, `scripts/extract_release_notes.py`.
+- `CLAUDE.md` promoted from stub to dense one-pager.
+- `docs/og_context/06_post_v0.1_roadmap.md` — the 16-batch plan.
+
+**Sphinx + Read the Docs (batch 1)**
+
+- `docs/conf.py` (furo + myst-parser + autodoc2 + sphinx-design +
+  sphinx-copybutton + sphinx-llms-txt), `.readthedocs.yaml`,
+  `docs/index.md`, `docs/reference/architecture.md`, contracts snapshot,
+  piggyback-map, 5 development pages, 8 cookbook pages (7 stubs + RDD +
+  SCM), `docs/references.bib` with 17 canonical citations.
+- CI `docs` job runs `sphinx-build -W --keep-going` + HTML artifact.
+- `docs` extras group in pyproject.toml.
+
+**Release automation + uv.lock (batch 2)**
+
+- `.github/workflows/release.yml` — OIDC trusted publisher, build →
+  publish → github-release chain.
+- `scripts/extract_release_notes.py`, `CITATION.cff`, `uv.lock` (232 packages).
+
+**Cross-platform CI (batch 3)**
+
+- `.github/workflows/ci.yml` test matrix expanded to
+  `{ubuntu, macos, windows}` × `{py3.12, py3.13}`.
+
+**Framework polish (batch 4)**
+
+- Public `Panel.attach_treatment_columns(events, replace=False)`.
+- `Panel.validate(strict=True)` kwarg — `strict=False` skips O(n) checks.
+- `Panel.__init__(..., validate=True)` kwarg.
+- `Panel.summary()` — dict with n_units, n_periods, n_records, freq,
+  period_kind, dimension, outcome_cols, n_treatment_events,
+  treated_unit_share, weights_col, has_record_view, provenance.
+- `<Family>Result.summary_table()` — added on DidResult, SurvivalResult,
+  EventStudyResult, SdidResult, MediationResult for engine-family parity.
+- `from_records` raises crisp error when all `record_view_columns` are
+  missing from records.
+
+**SDID + Mediation completeness (batch 5)**
+
+- `engines.sdid.estimate(inference="placebo", n_placebo=200)` option —
+  placebo-test inference alternative to jackknife.
+- `MediationResult.sensitivity(rho_range, n_points)` — unobserved-
+  confounding sensitivity analysis (CMAverse rho-test port).
+- `MediationResult.outcome_family` / `mediator_family` fields
+  (default `"linear"`; `"logistic"` reserved for future MC-integration
+  extension).
+
+**DiD + survival + event-study extensions (batch 6)**
+
+- `engines.did.sun_abraham` — Sun-Abraham (2021) IW estimator via
+  `differences.ATTgt` event-study aggregation.
+- `engines.did.borusyak_jaravel_spiess` — BJS (2024) imputation
+  estimator (homegrown, no upstream required).
+- `engines.survival.cox_ph(..., strata=)` — stratified Cox PH.
+- `engines.event_study.fama_french` — FF3/FF5/Carhart-4 market-model
+  event study with cached factor-series loader + live
+  pandas-datareader fallback.
+
+**New engine families (batches 7–12)**
+
+- `engines.rdd` — Regression Discontinuity via rdrobust
+  (Calonico-Cattaneo-Titiunik 2014). Sharp + fuzzy designs.
+- `engines.scm` — Synthetic Control: `augmented` (Ben-Michael et al. 2021)
+  homegrown + `pysyncon` classic (Abadie et al. 2010).
+- `engines.het_te` — Heterogeneous TEs: `causal_forest` (econml,
+  Wager-Athey 2018) + `bcf` (simplified Hahn-Murray-Carvalho 2020 port).
+- `engines.dml` — DoubleML: `plr` (Chernozhukov et al. 2018 partially-
+  linear-regression).
+- `engines.changepoint` — Changepoint detection: `ruptures`
+  (Truong-Oudre-Vayatis 2020).
+- `engines.stl` — Seasonal decomposition + forecasting: `sktime_stl`
+  (Cleveland et al. 1990).
+- `engines.panel_reg` — HDFE panel regression: `pyfixest`
+  (Correia 2016 / reghdfe Python port).
+- `engines.spatial` — Spatial autocorrelation: `morans_i`
+  (Moran 1950 / Anselin 1995 via esda + libpysal).
+- `engines.inequality` — Decomposition: `theil_t` homegrown with
+  between/within decomposition (Theil 1967).
+- `engines.reporting_bias` — Under-reporting estimation: `latent_em`
+  homegrown two-class EM (Dempster-Laird-Rubin 1977 framework).
+- `engines.hawkes` — Self-exciting point processes: `tick` via
+  HawkesExpKern (Hawkes 1971, Bacry et al. 2013).
+- `engines.climate` — Trend detection: `mann_kendall` homegrown with
+  Sen's slope estimator (Mann 1945 / Kendall 1948).
+- `engines.diffusion` — Network diffusion: `ndlib_sir` cascade
+  simulations (requires networkx.Graph passthrough).
+
+**Framework deep-cuts (batch 13)**
+
+- `factor_factory.tidy.PanelBuilder` — streaming panel construction
+  for large record streams. O(n_cells) memory, not O(n_records).
+- `tidy.socrata.bulk_fetch_async` — async variant of `bulk_fetch`
+  that uses `afetch` coroutine if the adapter provides it, else
+  falls back to sync via `asyncio.to_thread`.
+
+**Testing infrastructure (batch 14)**
+
+- Hypothesis property-based tests under `factor_factory/tests/properties/`
+  covering Panel validation, PanelBuilder parity, summary shuffle-
+  invariance, parquet round-trip.
+- pytest-benchmark harness under `factor_factory/tests/benchmarks/`.
+- pytest markers: `property`, `benchmark`, `snapshot`.
+- `docs/migration/v0-to-v1.md` — concrete migration guide for
+  downstream adopters.
+- `dev` extras gain hypothesis, pytest-benchmark, pytest-regressions.
+
+**Research-frontier + alternative reporting (batch 15)**
+
+- `engines.het_te.bcf` — Bayesian Causal Forest (simplified linear-
+  Gaussian port, Hahn-Murray-Carvalho 2020).
+- `engines.scm.matrix_completion` — Athey-Bayati-Doudchenko-Imbens-
+  Khosravi 2021 soft-impute SVD imputation.
+- `factor_factory.reporting.quarto` — `render_report()` generates
+  `.qmd` files from Result.to_dict() outputs for users who prefer
+  Quarto rendering over jellycell.
+
+### Changed
+
+- Default-dependency `jellycell[server]>=1.3,<2` → `>=1.3.5,<2` to
+  guarantee jellycell #16 (setup-cache), #17 (figure path-only),
+  #18 (--project), #19 (jc.table), #20 (tearsheet tag filtering),
+  #22 (kernel-iopub diagnostics) are available.
+
+### Contracts
+
+- Contract snapshots frozen at `SNAPSHOT_VERSION="1.0.0"` in
+  `docs/reference/contracts.md` — Panel shape + all 5 shipping Engine
+  Protocols (DiD / Survival / EventStudy / SDID / Mediation) + Tearsheet
+  JSON schema. Future changes that touch these schemas bump the snapshot
+  version and log a `### Contracts` entry here.
+
+## [0.1.0] — Phase 1 skeleton (in progress)
 
 ### Added
 
@@ -249,9 +407,13 @@
   fit partially, and which are deliberately out of scope (GWAS,
   streaming, deep learning).
 
-## v0.0.0 — Phase 0 design (2026)
+## [0.0.0] — Phase 0 design (2026)
 
 - `docs/og_context/` — design rationale, architecture, implementation
   plan, per-layer specs, downstream-change roadmap, RFC template.
 - LICENSE (MIT), `pyproject.toml` placeholder, `README.md`,
   `AGENTS.md`, `CLAUDE.md` (delegating to AGENTS.md).
+
+[unreleased]: https://github.com/random-walks/factor-factory/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/random-walks/factor-factory/releases/tag/v0.1.0
+[0.0.0]: https://github.com/random-walks/factor-factory/commits/v0.0.0

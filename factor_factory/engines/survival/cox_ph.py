@@ -33,6 +33,7 @@ class CoxPHEngine:
         event_col: str = "event",
         covariates: tuple[str, ...] = (),
         cluster: str | None = None,
+        strata: str | tuple[str, ...] | None = None,
         run_proportional_hazards_test: bool = True,
         **_engine_specific_kwargs: Any,
     ) -> SurvivalResult:
@@ -51,13 +52,21 @@ class CoxPHEngine:
             )
 
         df = _flatten_to_subject_table(panel, duration_col, event_col)
-        keep_cols = [duration_col, event_col, *covariates]
+        # Normalize strata to tuple form for downstream handling.
+        if strata is not None and isinstance(strata, str):
+            strata_tuple: tuple[str, ...] = (strata,)
+        elif strata is not None:
+            strata_tuple = tuple(strata)
+        else:
+            strata_tuple = ()
+
+        keep_cols = [duration_col, event_col, *covariates, *strata_tuple]
         if cluster is not None:
             keep_cols.append(cluster)
-        missing = [c for c in covariates if c not in df.columns]
+        missing = [c for c in (*covariates, *strata_tuple) if c not in df.columns]
         if missing:
             raise ValueError(
-                f"Panel missing covariate column(s) {missing}. Got: {list(df.columns)}."
+                f"Panel missing covariate/strata column(s) {missing}. Got: {list(df.columns)}."
             )
         sub = df[keep_cols].copy().astype({duration_col: float, event_col: int})
 
@@ -67,6 +76,7 @@ class CoxPHEngine:
             duration_col=duration_col,
             event_col=event_col,
             cluster_col=cluster,
+            strata=list(strata_tuple) if strata_tuple else None,
             robust=cluster is not None,
         )
         summary = cph.summary

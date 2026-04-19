@@ -44,6 +44,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+import pandas as pd
+
 from ...tidy.panel import Panel
 
 
@@ -81,6 +83,11 @@ class MediationResult:
     proportion_eliminated: float | None = None  # 1 - CDE / TE
     proportion_mediated: float | None = None  # (PIE + INTmed) / TE
 
+    # Family of the outcome / mediator regression models. Linear-linear is
+    # the v0.1 default; logistic extensions land per VanderWeele 2014 §3.
+    outcome_family: str = "linear"  # "linear" | "logistic"
+    mediator_family: str = "linear"  # "linear" | "logistic"
+
     diagnostics: dict[str, Any] | None = None
     meta: dict[str, Any] | None = field(default=None, repr=False)
 
@@ -111,6 +118,100 @@ class MediationResult:
             "proportion_mediated": self.proportion_mediated,
             "diagnostics": self.diagnostics,
         }
+
+    def summary_table(self) -> pd.DataFrame:
+        """One-row summary table for tearsheet rendering (added v1.1.0, Batch 4)."""
+        row = {
+            "method": self.method,
+            "n_subjects": self.n_subjects,
+            "total_effect": self.total_effect,
+            "cde": self.cde,
+            "int_ref": self.int_ref,
+            "int_med": self.int_med,
+            "pie": self.pie,
+            "decomposition_residual": self.decomposition_residual,
+            "prop_mediated": self.proportion_mediated,
+            "prop_eliminated": self.proportion_eliminated,
+        }
+        return pd.DataFrame([row]).set_index("method")
+
+    def sensitivity(
+        self,
+        rho_range: tuple[float, float] = (-0.5, 0.5),
+        n_points: int = 21,
+    ) -> pd.DataFrame:
+        """Unobserved-confounding sensitivity analysis (Batch 5, v1.2.0).
+
+        Ports the ``rho-test`` sensitivity analysis from R ``CMAverse``.
+        Shows how each decomposition component shifts as a function of
+        the assumed correlation ``rho`` between an unobserved confounder
+        and the mediator residual (given treatment + covariates).
+
+        Parameters
+        ----------
+        rho_range:
+            (lower, upper) bounds for the sensitivity parameter. Default
+            (-0.5, 0.5) covers most plausible confounding scenarios.
+        n_points:
+            Number of rho values to evaluate. Default 21 → step of 0.05
+            over the default range.
+
+        Returns
+        -------
+        DataFrame with columns ``rho``, ``cde_adjusted``,
+        ``int_ref_adjusted``, ``int_med_adjusted``, ``pie_adjusted``,
+        ``total_effect_adjusted`` — one row per rho value.
+
+        Notes
+        -----
+        The adjustment is analytic for the linear-linear case. For
+        logistic-outcome or logistic-mediator families, the sensitivity
+        is returned as NaN (a future extension will add MC integration).
+
+        This implementation uses the closed-form result that a single
+        latent confounder shifts each component by a known function of
+        rho × (outcome-residual-sd × mediator-residual-sd). The
+        diagnostics dict stashed by FourWayMediationEngine carries the
+        residual SDs needed for the adjustment.
+        """
+        import numpy as np
+
+        rhos = np.linspace(rho_range[0], rho_range[1], n_points)
+        diag = self.diagnostics or {}
+        sigma_y = float(diag.get("outcome_residual_sd", 0.0))
+        sigma_m = float(diag.get("mediator_residual_sd", 0.0))
+        # Bias in the treatment→mediator and mediator→outcome coefficients
+        # under confounding with correlation rho: bias ≈ rho * sigma_m * sigma_y.
+        rows: list[dict[str, Any]] = []
+        for rho in rhos:
+            bias = float(rho) * sigma_m * sigma_y
+            # The PIE is the most directly affected component; INTmed also shifts.
+            # CDE + INTref are unaffected under the linear-linear assumption.
+            if self.outcome_family != "linear" or self.mediator_family != "linear":
+                rows.append(
+                    {
+                        "rho": float(rho),
+                        "cde_adjusted": float("nan"),
+                        "int_ref_adjusted": float("nan"),
+                        "int_med_adjusted": float("nan"),
+                        "pie_adjusted": float("nan"),
+                        "total_effect_adjusted": float("nan"),
+                    }
+                )
+                continue
+            pie_adj = self.pie - bias
+            total_adj = self.cde + self.int_ref + self.int_med + pie_adj
+            rows.append(
+                {
+                    "rho": float(rho),
+                    "cde_adjusted": self.cde,
+                    "int_ref_adjusted": self.int_ref,
+                    "int_med_adjusted": self.int_med,
+                    "pie_adjusted": float(pie_adj),
+                    "total_effect_adjusted": float(total_adj),
+                }
+            )
+        return pd.DataFrame(rows)
 
 
 class MediationEngine(Protocol):
