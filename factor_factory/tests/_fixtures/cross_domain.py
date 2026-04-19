@@ -879,6 +879,52 @@ def mediation_panel() -> Panel:
     return Panel(df.sort_index(), metadata)
 
 
+def rdd_sharp_cutoff_panel() -> Panel:
+    """Synthetic sharp-RDD panel with a known jump at cutoff=60.
+
+    500 students × single 'period' axis. Treatment = 1(test_score >= 60);
+    outcome Y = 2 * 1[treated] + 0.05 * test_score + ε. Ground-truth
+    jump at the cutoff = 2.0.
+    """
+    rng = np.random.default_rng(_SEED + 7)
+    n = 500
+    test_score = rng.uniform(0, 100, size=n)
+    treated = (test_score >= 60).astype(int)
+    y = 2.0 * treated + 0.05 * test_score + rng.normal(0, 0.5, size=n)
+
+    # Fake "period" axis — one period per student. Use integer periods.
+    records = [
+        {"student_id": f"s{i:04d}", "period": 0, "test_score": float(test_score[i])}
+        for i in range(n)
+    ]
+    rv_columns = ("test_score",)
+    panel = Panel.from_records(
+        records,
+        dimension="student_id",
+        freq=None,
+        period_kind="integer",
+        outcome_col="n",
+        record_view=True,
+        record_view_columns=rv_columns,
+    )
+    # Attach test_score + outcome to the DataFrame as a new column via metadata surgery.
+    df = panel.df.copy()
+    df["test_score"] = test_score
+    df["y"] = y
+    df["treated"] = treated
+    meta = panel.metadata.model_copy(update={"outcome_cols": ("y",)})
+    return Panel(df, meta, record_view=panel._record_view)
+
+
+# Ground-truth values for cross-domain fixtures (tests assert these).
+FIXTURE_GROUND_TRUTH: dict[str, dict[str, float]] = {
+    "rdd_sharp_cutoff_panel": {"jump": 2.0, "cutoff": 60.0},
+    "mediation_panel": {"cde": 2.0, "pie": 1.5, "int_med": 0.45, "int_ref": 0.15},
+    "sdid_block_treatment_panel": {"att": 4.0},
+    "small_treatment_effect_panel": {"att": 5.0},
+}
+
+
 __all__ = [
     "agronomic_dose_response_panel",
     "chem_assay_panel",
@@ -892,6 +938,7 @@ __all__ = [
     "mediation_panel",
     "network_diffusion_panel",
     "rct_longitudinal_panel",
+    "rdd_sharp_cutoff_panel",
     "sdid_block_treatment_panel",
     "staggered_did_panel",
     "survival_oncology_panel",
