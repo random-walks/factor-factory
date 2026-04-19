@@ -6,10 +6,19 @@ sibling toolkits), with **first-class jellycell integration**.
 
 ## Status
 
-`v0.0.0` — **design phase**. The complete design rationale, API
-specs, implementation plan, and downstream-change roadmap live in
-[`docs/og_context/`](docs/og_context/). New agents picking up this
-repo should start at [`docs/og_context/README.md`](docs/og_context/README.md).
+`v0.1.0` — **Phase 1 skeleton + first DiD engine + jellycell MVP**.
+The tidy / diagnostics / jellycell layers ship today; engine fan-out
+(Callaway-Sant'Anna, rdrobust, pysyncon, ruptures, …) lands in
+v0.2+ per the [implementation plan](docs/og_context/02_implementation_plan.md).
+The complete design rationale, API specs, and roadmap live in
+[`docs/og_context/`](docs/og_context/).
+
+User docs:
+- [`docs/getting-started.md`](docs/getting-started.md) — install,
+  build a Panel, run a DiD, render manuscripts.
+- [`docs/jellycell-integration.md`](docs/jellycell-integration.md) —
+  cell conventions, the upstream-bug workarounds, the `scaffold`
+  command.
 
 ## What it does (elevator pitch)
 
@@ -33,13 +42,15 @@ scaffolding so new toolkits inherit it for free, and adopts a
 implementations (Callaway-Sant'Anna, rdrobust, pysyncon, ruptures,
 ...) all return comparable result dataclasses.
 
-## Quick start (post-implementation)
+## Quick start
 
 ```bash
-pip install factor-factory[all]              # or [did], [rdd], [scm], [tidy] etc.
+pip install factor-factory[did]              # default + linearmodels (TWFE engine)
 
 # scaffold a new showcase against jellycell
 python -m factor_factory scaffold my-showcase
+cd my-showcase
+python notebooks/01_load.py                  # builds a synthetic panel + runs DiD + renders manuscripts
 
 # inside a notebook
 from factor_factory.jellycell.cells import setup
@@ -51,8 +62,8 @@ from factor_factory.engines.did import estimate
 
 panel = Panel.from_records(records, geography="community_district", freq="ME",
                             treatment_events=(TreatmentEvent(...),))
-results = estimate(panel, methods=("twfe", "cs", "sa", "bjs"),
-                   outcome="complaint_count", cluster="unit_id")
+results = estimate(panel, methods=("twfe",),                       # v0.1: twfe only
+                   outcome="complaint_count", cluster="unit_id")   # v0.2+: ("twfe","cs","sa","bjs")
 print(results.summary_table())
 ```
 
