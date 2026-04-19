@@ -16,6 +16,29 @@ of them requires a major bump post-1.0.
 
 _(empty)_
 
+## [1.0.1] — 2026-04-19
+
+Small post-v1.0.0 housekeeping pass before downstream showcase adoption.
+
+### Changed
+
+- **GitHub Actions pins bumped** (`.github/workflows/*.yml`) to their
+  latest majors to eliminate the Node.js 20 deprecation warnings
+  GitHub surfaced on the v1.0.0 release run:
+  - `actions/checkout` v4 → v6
+  - `actions/upload-artifact` v4 → v7
+  - `actions/download-artifact` v4 → v8
+  - `astral-sh/setup-uv` v3 → v8
+  - `softprops/action-gh-release` v2 → v3
+  - `pypa/gh-action-pypi-publish@release/v1` stays (moving tag by
+    design per the upstream maintainer's convention).
+
+### Fixed
+
+- `.gitignore` adds `.claude/scheduled_tasks.lock` (MCP
+  scheduled-tasks runtime-state file that was appearing as untracked
+  on every developer clone with the plugin enabled).
+
 ## [1.0.0] — 2026-04-19 — v1.0 roadmap sweep (batches 0–16)
 
 16 batches of additive work landed in one merge via PR #2. No
@@ -420,7 +443,8 @@ First stable release; first PyPI publication.
 - LICENSE (MIT), `pyproject.toml` placeholder, `README.md`,
   `AGENTS.md`, `CLAUDE.md` (delegating to AGENTS.md).
 
-[unreleased]: https://github.com/random-walks/factor-factory/compare/v1.0.0...HEAD
+[unreleased]: https://github.com/random-walks/factor-factory/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/random-walks/factor-factory/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/random-walks/factor-factory/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/random-walks/factor-factory/releases/tag/v0.1.0
 [0.0.0]: https://github.com/random-walks/factor-factory/commits/v0.0.0

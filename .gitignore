@@ -18,6 +18,9 @@ docs/_build/
 docs/apidocs/
 *.buildinfo.bak
 
+# Claude Code MCP / scheduled-tasks runtime state
+.claude/scheduled_tasks.lock
+
 # jellycell — commit cache manifests (small JSON provenance), drop blobs/state
 **/.jellycell/cache/blobs/
 **/.jellycell/cache/state.db
