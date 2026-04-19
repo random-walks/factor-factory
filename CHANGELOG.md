@@ -10,11 +10,17 @@ Protocol / Tearsheet JSON) are documented in
 [`docs/reference/contracts.md`](docs/reference/contracts.md); breaking any
 of them requires a major bump post-1.0.
 
-## [Unreleased] — v1.0 roadmap sweep (batches 0–16)
+## [Unreleased]
 
-The `feat/v1.0-roadmap` branch merges 16 batches of additive work. No
+### Added / Changed / Fixed / Deprecated / Contracts / Security
+
+_(empty)_
+
+## [1.0.0] — 2026-04-19 — v1.0 roadmap sweep (batches 0–16)
+
+16 batches of additive work landed in one merge via PR #2. No
 contract breaks; every change is backwards-compatible with v0.1.0.
-Tag this as `v1.0.0` at merge time.
+First stable release; first PyPI publication.
 
 ### Added
 
@@ -414,6 +420,7 @@ Tag this as `v1.0.0` at merge time.
 - LICENSE (MIT), `pyproject.toml` placeholder, `README.md`,
   `AGENTS.md`, `CLAUDE.md` (delegating to AGENTS.md).
 
-[unreleased]: https://github.com/random-walks/factor-factory/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/random-walks/factor-factory/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/random-walks/factor-factory/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/random-walks/factor-factory/releases/tag/v0.1.0
 [0.0.0]: https://github.com/random-walks/factor-factory/commits/v0.0.0
