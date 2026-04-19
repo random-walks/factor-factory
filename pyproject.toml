@@ -85,6 +85,18 @@ all = [
     "ndlib>=5.1",
 ]
 
+# Docs toolchain — mirrors jellycell's Sphinx + furo + autodoc2 + llms-txt.
+docs = [
+    "sphinx>=7.3",
+    "sphinx-autobuild>=2024.9",
+    "sphinx-autodoc2>=0.5",
+    "myst-parser>=3.0",
+    "furo>=2024.8",
+    "sphinx-design>=0.6",
+    "sphinx-copybutton>=0.5",
+    "sphinx-llms-txt>=0.5",
+]
+
 # Dev tooling — ships with the package source, not on PyPI.
 dev = [
     "pytest>=8.0",
