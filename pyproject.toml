@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
 authors = [
-    { name = "random-walks", email = "blaise@ubik.studio" },
+    { name = "random-walks" },
 ]
 keywords = ["panel-data", "did", "rdd", "scm", "econometrics", "jellycell", "tearsheet"]
 classifiers = [
