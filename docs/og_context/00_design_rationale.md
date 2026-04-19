@@ -2,11 +2,10 @@
 
 ## The pattern we observed
 
-Writing three jellycell showcase projects in
-[`blaise-website/packages/python-showcase/`](https://github.com/random-walks/blaise-website/tree/main/packages/python-showcase)
-that consume both `nyc311` and `subway-access` surfaced an unmistakable
-pattern. Every analysis pipeline — across both libraries, across all
-three case studies — followed the same shape:
+Writing three jellycell showcase projects that consume both `nyc311`
+and `subway-access` surfaced an unmistakable pattern. Every analysis
+pipeline — across both libraries, across all three case studies —
+followed the same shape:
 
 ```
 raw records
@@ -22,7 +21,7 @@ modeling results
 ```
 
 And every consumer of that pattern (whether `nyc311.examples.case_studies.*`,
-`subway-access.examples.*`, or one of the blaise-website showcases) had
+`subway-access.examples.*`, or one of the downstream showcases) had
 to:
 
 - Reimplement panel-building scaffolding with slightly different APIs
@@ -170,9 +169,9 @@ Documented explicitly because scope-creep is the highest risk:
 
 Three reasons:
 
-1. **We have three concrete consumers** (the blaise-website
-   showcases) plus two existing libraries (`nyc311`, `subway-access`)
-   that have surfaced the pattern unambiguously.
+1. **We have three concrete consumers** (the downstream showcases)
+   plus two existing libraries (`nyc311`, `subway-access`) that have
+   surfaced the pattern unambiguously.
 2. **No one is currently consuming the upstream packages downstream
    of the author** — major-version bumps in `nyc311` / `subway-access`
    are low-cost. If we wait until they have external users,

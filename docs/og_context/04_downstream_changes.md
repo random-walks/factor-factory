@@ -1,8 +1,8 @@
 # Downstream changes
 
-What `nyc311`, `subway-access`, and `blaise-website`'s showcase suite
-must do once factor-factory v1.0 ships. Read this once factor-factory
-is at v0.4+ (Phase 2 in flight) and you're starting to plan downstream
+What `nyc311`, `subway-access`, and downstream showcase suites must
+do once factor-factory v1.0 ships. Read this once factor-factory is
+at v0.4+ (Phase 2 in flight) and you're starting to plan downstream
 adoption.
 
 ## Summary
@@ -13,7 +13,7 @@ Three downstream consumers, each with a specific migration plan:
 |---|---|---|
 | `random-walks/nyc311` | Add factor-factory dep; deprecate homegrown `nyc311.stats.*` behind warnings; port one example folder fully | Phase 4 (factor-factory v0.5+) |
 | `random-walks/subway-access` | Same pattern: add dep, port one example folder, deprecate stats | Phase 4 |
-| `random-walks/blaise-website` showcases | Rewrite all three showcase-* projects against factor-factory | Phase 3 (parallel with late Phase 2) |
+| Downstream showcase suites | Rewrite the dogfood-target showcase projects against factor-factory | Phase 3 (parallel with late Phase 2) |
 
 ## `nyc311` migration
 
@@ -130,29 +130,29 @@ generation) all moves to factor-factory.
 
 `subway-access 1.0.0`: drop the wrappers. End state mirrors nyc311.
 
-## `blaise-website` showcase suite migration
+## Downstream showcase migration
 
 This happens DURING Phase 3 (parallel with late Phase 2 of
 factor-factory's engine fan-out). Once factor-factory hits v0.4
-(DiD + RDD + SCM available), rewrite the three showcases:
+(DiD + RDD + SCM available), rewrite the three dogfood showcases:
 
-### `showcase-rat-containerization`
+### Rat containerization showcase
 
 The biggest win — most stats. Expected changes:
 
 - `_helpers.py` shrinks to ~30 lines (just the NYC311 adapter
   registration + treatment-event definition)
-- Notebook 03 (`main_effects`): becomes ~50% shorter — multi-engine
-  DiD via `factor_factory.engines.did.estimate(panel, methods=("twfe", "cs", "sa", "bjs"))`
-- Notebook 04 (`diagnostics`): residual diagnostics via
+- Main-effects notebook: becomes ~50% shorter — multi-engine DiD via
+  `factor_factory.engines.did.estimate(panel, methods=("twfe", "cs", "sa", "bjs"))`
+- Diagnostics notebook: residual diagnostics via
   `factor_factory.diagnostics.residual_diagnostics`; bootstrap CIs
   via `factor_factory.diagnostics.block_bootstrap` (new helper)
-- Notebook 05 (`robustness`): HTE / placebo / seasonal-demeaned
-  patterns formalized as factor-factory diagnostic helpers
-- Notebook 07 (`rdd_and_spatial`): RDD via
+- Robustness notebook: HTE / placebo / seasonal-demeaned patterns
+  formalized as factor-factory diagnostic helpers
+- RDD + spatial notebook: RDD via
   `factor_factory.engines.rdd.rdrobust`; spatial-lag DiD via
   `factor_factory.engines.spatial.spatial_lag`
-- Notebook 08 (`extended_robustness`): MDE via
+- Extended robustness notebook: MDE via
   `factor_factory.diagnostics.mde`; multi-year pretrends via
   `factor_factory.diagnostics.multi_year_parallel_trends`;
   reporting-bias EM via
@@ -166,7 +166,7 @@ The biggest win — most stats. Expected changes:
 Expected line count: ~50% reduction across the notebook source +
 elimination of the four hand-authored manuscript scaffolds.
 
-### `showcase-resolution-equity`
+### Resolution equity showcase
 
 Similar reduction. The synthetic-panel synthesizer in `_helpers.py`
 goes away — replaced by factor-factory's
@@ -177,7 +177,7 @@ The Moran's I sensitivity sweep, Theil decomposition,
 Oaxaca-Blinder all become single-line calls into
 factor-factory's engines.
 
-### `showcase-subway-accessibility`
+### Subway accessibility showcase
 
 Smallest delta — verbatim mirror, mostly tearsheet-template
 adoption. The five notebooks become essentially:

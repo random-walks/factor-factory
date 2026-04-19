@@ -1,10 +1,9 @@
 # `og_context/` — original-context handoff
 
 Comprehensive design + spec + plan materials for `factor-factory`.
-Authored during the design phase by the team that wrote
-[blaise-website's `packages/python-showcase/`](https://github.com/random-walks/blaise-website/tree/main/packages/python-showcase)
-showcase suite — the friction we hit there is the rationale for
-this entire framework.
+Authored during the design phase after multiple jellycell-driven
+showcase projects surfaced the same patterns over and over — the
+friction we hit there is the rationale for this entire framework.
 
 A new agent picking up this repo should be able to read this folder
 end-to-end and have everything needed to implement v0.1 without
@@ -18,7 +17,7 @@ back-and-forth questions.
 | [`01_architecture.md`](01_architecture.md) | Directory layout + Protocol pattern + optional-deps strategy + naming conventions. |
 | [`02_implementation_plan.md`](02_implementation_plan.md) | Phase-by-phase roadmap (Phase 0 RFC → Phase 5 consumer cleanup) with acceptance gates per phase. |
 | [`03_specs/`](03_specs/) | Detailed API specs per layer. Each is implementable in isolation. |
-| [`04_downstream_changes.md`](04_downstream_changes.md) | What `nyc311`, `subway-access`, and `blaise-website`'s showcase suite must do once factor-factory v1.0 ships. |
+| [`04_downstream_changes.md`](04_downstream_changes.md) | What `nyc311`, `subway-access`, and downstream showcase suites must do once factor-factory v1.0 ships. |
 | [`05_rfc_template.md`](05_rfc_template.md) | Template for engine-family RFCs (one per Phase 2 release). |
 
 ## Reading order
@@ -36,21 +35,16 @@ back-and-forth questions.
 
 ## Provenance
 
-Original design discussion happened in
-[blaise-website PR #17](https://github.com/random-walks/blaise-website/pull/17)
-(`packages/python-showcase`). Specifically:
-
-- [`UPSTREAM_POSSIBLE_PACKAGES.md`](https://github.com/random-walks/blaise-website/blob/main/packages/python-showcase/UPSTREAM_POSSIBLE_PACKAGES.md) — the original PACKAGES #1 proposal
-- [`UPSTREAM_ISSUES.md`](https://github.com/random-walks/blaise-website/blob/main/packages/python-showcase/UPSTREAM_ISSUES.md) — what's still upstream-pending after factor-factory ships
-- [`FACTOR_FACTORY_PLAN.md`](https://github.com/random-walks/blaise-website/blob/main/packages/python-showcase/FACTOR_FACTORY_PLAN.md) — the originating plan doc; this `og_context/` folder expands and supersedes it
-
-That conversation produced three blaise-website showcases
-(`showcase-rat-containerization`, `showcase-resolution-equity`,
-`showcase-subway-accessibility`) that are the **dogfood targets**
-for factor-factory's first major version. Phase 3 of the
-implementation plan rewrites those three showcases against
-factor-factory; that's the acceptance signal that the framework is
-ready for upstream consumer adoption (`nyc311`, `subway-access`).
+The design crystallized during a downstream showcase-writing
+exercise that consumed both `nyc311` and `subway-access`. The three
+showcase domains — rat containerization (DiD + RDD heavy),
+resolution equity (Theil + Oaxaca-Blinder + Moran's I), subway
+accessibility (multi-engine reliability-weighted coverage) — are
+the **dogfood targets** for factor-factory's first major version.
+Phase 3 of the implementation plan rewrites those three showcases
+against factor-factory; that's the acceptance signal that the
+framework is ready for upstream consumer adoption (`nyc311`,
+`subway-access`).
 
 ## Decision log
 
