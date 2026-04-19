@@ -132,11 +132,14 @@ class Panel:
         df: pd.DataFrame,
         metadata: PanelMetadata,
         record_view: RecordView | None = None,
+        *,
+        validate: bool = True,
     ) -> None:
         self.df = df
         self.metadata = metadata
         self._record_view = record_view
-        self.validate()
+        if validate:
+            self.validate()
 
     # ─── properties ──────────────────────────────────────────────────────
 
@@ -270,9 +273,33 @@ class Panel:
 
         unit_id_extractor = unit_id_extractor or _default_unit_id_extractor(dim)
         period_extractor = period_extractor or _default_period_extractor()
+        user_supplied_extractor = record_extra_extractor is not None
         record_extra_extractor = record_extra_extractor or _default_record_extra_extractor(
             record_view_columns
         )
+
+        # Materialize records so we can peek for the record_view schema check + iterate below.
+        records = list(records)
+
+        # Schema-check record_view_columns early if a record_view is requested
+        # and the default extractor is in use. Peek at the first record; if
+        # NONE of the requested columns are present, raise immediately rather
+        # than silently producing rows of all-None extras.
+        if record_view and not user_supplied_extractor and records:
+            probe = records[0]
+            if isinstance(probe, dict):
+                available = set(probe.keys())
+            else:
+                available = {k for k in dir(probe) if not k.startswith("_")}
+            missing = [c for c in record_view_columns if c not in available]
+            if len(missing) == len(record_view_columns):
+                raise ValueError(
+                    f"record_view=True requested but none of the "
+                    f"record_view_columns={list(record_view_columns)} are present "
+                    f"on records. Got keys/attrs: {sorted(available)[:20]}. "
+                    f"Pass a custom record_extra_extractor= or adjust "
+                    f"record_view_columns=."
+                )
 
         rows: list[dict[str, Any]] = []
         record_rows: list[dict[str, Any]] = []
@@ -333,23 +360,30 @@ class Panel:
 
     # ─── validation ──────────────────────────────────────────────────────
 
-    def validate(self) -> None:
-        """Raise ``ValueError`` if the panel violates any invariant."""
+    def validate(self, *, strict: bool = True) -> None:
+        """Raise ``ValueError`` if the panel violates any invariant.
+
+        Parameters
+        ----------
+        strict:
+            When ``True`` (default), run every invariant including the
+            O(n) checks (NaN scans, balanced-panel check, framework-column
+            NaN scans). When ``False``, only run the O(1) structural
+            checks (MultiIndex shape, level names, period-dtype match).
+            Useful for very large panels where the O(n) checks would
+            dominate construction time; the caller is vouching that the
+            data is already clean.
+        """
         df = self.df
         idx = df.index
 
+        # O(1) structural checks — always run.
         if not isinstance(idx, pd.MultiIndex):
             raise ValueError("Panel index must be a MultiIndex.")
         if list(idx.names) != ["unit_id", "period"]:
             raise ValueError(
                 f"Panel index names must be ['unit_id', 'period'], got {list(idx.names)}."
             )
-        if idx.has_duplicates:
-            raise ValueError("Panel index has duplicate (unit_id, period) entries.")
-        if bool(np.asarray(pd.isna(idx.get_level_values("unit_id"))).any()):
-            raise ValueError("Panel has NaN in unit_id index level.")
-        if bool(np.asarray(pd.isna(idx.get_level_values("period"))).any()):
-            raise ValueError("Panel has NaN in period index level.")
 
         # Period dtype must match metadata.period_kind.
         period_index = idx.get_level_values("period")
@@ -365,6 +399,17 @@ class Panel:
         elif kind == "float" and not pd.api.types.is_float_dtype(period_index.dtype):
             raise ValueError(f"period_kind='float' but period dtype is {period_index.dtype}.")
         # "ordinal" accepts any orderable type.
+
+        if not strict:
+            return
+
+        # O(n) data-quality checks — gated by strict=True.
+        if idx.has_duplicates:
+            raise ValueError("Panel index has duplicate (unit_id, period) entries.")
+        if bool(np.asarray(pd.isna(idx.get_level_values("unit_id"))).any()):
+            raise ValueError("Panel has NaN in unit_id index level.")
+        if bool(np.asarray(pd.isna(idx.get_level_values("period"))).any()):
+            raise ValueError("Panel has NaN in period index level.")
 
         # Outcome columns must all exist + be numeric.
         for outcome in self.outcome_cols:
@@ -436,6 +481,101 @@ class Panel:
         )
         new_df = self.df.reindex(full, fill_value=fill_value).sort_index()
         return Panel(new_df, self.metadata, record_view=self._record_view)
+
+    def attach_treatment_columns(
+        self,
+        events: tuple[TreatmentEvent, ...] | None = None,
+        *,
+        replace: bool = False,
+    ) -> Panel:
+        """Return a new ``Panel`` with per-event + aggregate treatment columns attached.
+
+        Public wrapper around the module-private ``_attach_treatment_columns``
+        helper. Promoted from underscored to public API in v1.1.0 so users
+        who construct panels directly via ``Panel(...)`` (not via
+        ``from_records``) can attach treatment columns without reaching
+        into a private module.
+
+        Parameters
+        ----------
+        events:
+            Tuple of ``TreatmentEvent`` to attach. When ``None`` (default),
+            re-attach from ``self.metadata.treatment_events`` — useful
+            after mutating ``self.df`` via ``balance()`` or subsetting.
+        replace:
+            When ``True``, drop any existing treatment columns before
+            re-attaching. When ``False`` (default), raise if any of the
+            target columns already exist (safer; avoids silent overwrite).
+        """
+        events = events if events is not None else self.treatment_events
+        df = self.df
+        if replace:
+            target_cols = {_TREATED_UNIT, _POST, _TREATMENT}
+            for ev in events:
+                target_cols.update(
+                    [
+                        f"{_TREATED_UNIT}__{ev.name}",
+                        f"{_POST}__{ev.name}",
+                        f"{_TREATMENT}__{ev.name}",
+                        f"arm__{ev.name}",
+                    ]
+                )
+            overlap = target_cols & set(df.columns)
+            if overlap:
+                df = df.drop(columns=list(overlap))
+        else:
+            # Forbid silent overwrite.
+            existing = {f"{_TREATMENT}__{ev.name}" for ev in events} & set(df.columns)
+            if existing:
+                raise ValueError(
+                    f"attach_treatment_columns would overwrite existing columns "
+                    f"{sorted(existing)}. Pass replace=True to force."
+                )
+        new_df = _attach_treatment_columns(df, events, period_kind=self.metadata.period_kind)
+        # New metadata reflects the events actually attached.
+        new_meta = self.metadata.model_copy(update={"treatment_events": events})
+        return Panel(new_df, new_meta, record_view=self._record_view)
+
+    def summary(self) -> dict[str, Any]:
+        """Return a small dict summarizing the panel shape.
+
+        Consumed by tearsheet renderers and analyst notebooks. The shape
+        of this dict is part of the Panel contract — adding keys is safe,
+        renaming/removing is breaking.
+        """
+        df = self.df
+        idx = df.index
+        n_units = int(idx.get_level_values("unit_id").nunique())
+        n_periods = int(idx.get_level_values("period").nunique())
+        treated_share: float | None = None
+        if _TREATED_UNIT in df.columns and len(df) > 0:
+            treated_share = float(df[_TREATED_UNIT].mean())
+
+        return {
+            "n_units": n_units,
+            "n_periods": n_periods,
+            "n_records": int(len(df)),
+            "freq": self.metadata.freq,
+            "period_kind": self.metadata.period_kind,
+            "dimension": self.metadata.dimension,
+            "outcome_cols": list(self.outcome_cols),
+            "n_outcomes": len(self.outcome_cols),
+            "n_treatment_events": len(self.treatment_events),
+            "treatment_event_names": [ev.name for ev in self.treatment_events],
+            "treated_unit_share": treated_share,
+            "weights_col": self.metadata.weights_col,
+            "has_record_view": self.has_record_view,
+            "provenance": {
+                "data_source": self.provenance.data_source,
+                "license": self.provenance.license,
+                "citation": self.provenance.citation,
+                "creator": self.provenance.creator,
+                "dataset_version": self.provenance.dataset_version,
+                "created_at": self.provenance.created_at.isoformat()
+                if self.provenance.created_at
+                else None,
+            },
+        }
 
     def per_event_columns(self, event_name: str) -> tuple[str, str, str]:
         """Convenience: return the per-event column names for ``event_name``.

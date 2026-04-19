@@ -62,6 +62,25 @@ class SurvivalResult:
             "diagnostics": self.diagnostics,
         }
 
+    def summary_table(self) -> pd.DataFrame:
+        """One-row summary table for tearsheet rendering.
+
+        Mirrors the ``DidResults.summary_table()`` shape for engine-family
+        parity (added in v1.1.0, Batch 4).
+        """
+        row: dict[str, Any] = {
+            "method": self.method,
+            "median_survival": self.median_survival,
+            "n_subjects": self.n_subjects,
+            "n_events": self.n_events,
+        }
+        if self.hazard_ratios:
+            for k, v in self.hazard_ratios.items():
+                row[f"hr[{k}]"] = v
+                if self.p_values and k in self.p_values:
+                    row[f"p[{k}]"] = self.p_values[k]
+        return pd.DataFrame([row]).set_index("method")
+
 
 class SurvivalEngine(Protocol):
     """Protocol every survival-analysis engine must satisfy.

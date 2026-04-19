@@ -44,6 +44,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+import pandas as pd
+
 from ...tidy.panel import Panel
 
 
@@ -111,6 +113,22 @@ class MediationResult:
             "proportion_mediated": self.proportion_mediated,
             "diagnostics": self.diagnostics,
         }
+
+    def summary_table(self) -> pd.DataFrame:
+        """One-row summary table for tearsheet rendering (added v1.1.0, Batch 4)."""
+        row = {
+            "method": self.method,
+            "n_subjects": self.n_subjects,
+            "total_effect": self.total_effect,
+            "cde": self.cde,
+            "int_ref": self.int_ref,
+            "int_med": self.int_med,
+            "pie": self.pie,
+            "decomposition_residual": self.decomposition_residual,
+            "prop_mediated": self.proportion_mediated,
+            "prop_eliminated": self.proportion_eliminated,
+        }
+        return pd.DataFrame([row]).set_index("method")
 
 
 class MediationEngine(Protocol):

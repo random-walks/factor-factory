@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+import pandas as pd
+
 from ...tidy.panel import Panel
 
 
@@ -42,6 +44,24 @@ class DidResult:
             "cohort_ses": self.cohort_ses,
             "diagnostics": self.diagnostics,
         }
+
+    def summary_table(self) -> pd.DataFrame:
+        """One-row summary table for tearsheet rendering.
+
+        Parity with ``DidResults.summary_table()`` (which stacks multiple
+        results). Added in v1.1.0 (Batch 4) so every per-family ``Result``
+        has the same API surface.
+        """
+        row = {
+            "method": self.method,
+            "att": self.att,
+            "se": self.se,
+            "ci_lo": self.ci_95[0],
+            "ci_hi": self.ci_95[1],
+            "p_value": self.p_value,
+            "n": self.n,
+        }
+        return pd.DataFrame([row]).set_index("method")
 
 
 class DidEngine(Protocol):

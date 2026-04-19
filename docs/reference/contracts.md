@@ -31,16 +31,29 @@ Every `<Family>` shipping today:
 ```python
 @dataclass(frozen=True)
 class DidResult:
-    estimate: float
-    std_error: float
-    method: str          # "twfe" | "cs"
-    cluster: str | None
-    n_treated: int
-    n_control: int
-    extra: dict[str, Any]
+    method: str              # "twfe" | "cs"
+    att: float
+    se: float
+    ci_95: tuple[float, float]
+    p_value: float
+    n: int
+    cohort_atts: dict[int, float] | None = None
+    cohort_ses: dict[int, float] | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None  # excluded from to_dict()
+
 
 class DidEngine(Protocol):
-    def estimate(self, panel: Panel, **kwargs: Any) -> DidResult: ...
+    name: str
+    def fit(
+        self,
+        panel: Panel,
+        *,
+        outcome: str,
+        treatment: str = "treatment",
+        cluster: str | None = None,
+        **kwargs: Any,
+    ) -> DidResult: ...
 ```
 
 ### Survival
@@ -48,11 +61,18 @@ class DidEngine(Protocol):
 ```python
 @dataclass(frozen=True)
 class SurvivalResult:
-    method: str          # "kaplan_meier" | "cox_ph"
-    survival_function: pd.DataFrame | None
-    hazard_ratios: dict[str, float] | None
-    confidence_interval: pd.DataFrame | None
-    extra: dict[str, Any]
+    method: str              # "kaplan_meier" | "cox_ph"
+    median_survival: float | None
+    n_subjects: int
+    n_events: int
+    coefficients: dict[str, float] | None = None
+    hazard_ratios: dict[str, float] | None = None
+    p_values: dict[str, float] | None = None
+    confidence_intervals: dict[str, tuple[float, float]] | None = None
+    survival_curve: pd.DataFrame | None = None
+    proportional_hazards_test: dict[str, float] | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
 ```
 
 ### Event Study
@@ -60,12 +80,19 @@ class SurvivalResult:
 ```python
 @dataclass(frozen=True)
 class EventStudyResult:
-    method: str          # "market_adjusted" | "fama_french"
-    abnormal_returns: pd.DataFrame
-    car: pd.Series
-    t_stat: float
-    p_value: float
-    extra: dict[str, Any]
+    method: str              # "market_adjusted" | "fama_french"
+    n_events: int
+    average_abnormal_return: float
+    car_event_window: float
+    car_se: float
+    car_t_stat: float
+    car_p_value: float
+    abnormal_return_curve: pd.DataFrame | None = None
+    per_unit_car: dict[str, float] | None = None
+    estimation_window: tuple[int, int] | None = None
+    event_window: tuple[int, int] | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
 ```
 
 ### SDID
@@ -73,12 +100,19 @@ class EventStudyResult:
 ```python
 @dataclass(frozen=True)
 class SdidResult:
+    method: str              # "sdid"
     att: float
-    std_error: float
-    inference: str       # "jackknife" | "placebo"
-    unit_weights: pd.Series
-    time_weights: pd.Series
-    extra: dict[str, Any]
+    se: float
+    p_value: float
+    n: int
+    unit_weights: dict[Any, float] | None = None
+    time_weights: dict[Any, float] | None = None
+    n_treated: int | None = None
+    n_control: int | None = None
+    n_pre: int | None = None
+    n_post: int | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
 ```
 
 ### Mediation
@@ -86,15 +120,27 @@ class SdidResult:
 ```python
 @dataclass(frozen=True)
 class MediationResult:
+    method: str              # "four_way"
+    n_subjects: int
+    treatment: str
+    mediator: str
+    outcome: str
+    total_effect: float
     cde: float
     int_ref: float
     int_med: float
     pie: float
-    std_errors: dict[str, float]
-    confidence_intervals: dict[str, tuple[float, float]]
-    outcome_family: str   # "linear" | "logistic" (Batch 5)
-    mediator_family: str  # "linear" | "logistic" (Batch 5)
-    extra: dict[str, Any]
+    decomposition_residual: float
+    total_effect_se: float | None = None
+    cde_se: float | None = None
+    int_ref_se: float | None = None
+    int_med_se: float | None = None
+    pie_se: float | None = None
+    confidence_intervals: dict[str, tuple[float, float]] | None = None
+    proportion_eliminated: float | None = None
+    proportion_mediated: float | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
 ```
 
 ## Contract 3 — Tearsheet JSON

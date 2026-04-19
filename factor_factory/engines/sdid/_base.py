@@ -83,6 +83,21 @@ class SdidResult:
             "diagnostics": self.diagnostics,
         }
 
+    def summary_table(self) -> pd.DataFrame:
+        """One-row summary table for tearsheet rendering (added v1.1.0, Batch 4)."""
+        row = {
+            "method": self.method,
+            "att": self.att,
+            "se": self.se,
+            "ci_lo": self.ci_95[0],
+            "ci_hi": self.ci_95[1],
+            "p_value": self.p_value,
+            "n": self.n,
+            "n_treated": self.n_treated,
+            "n_control": self.n_control,
+        }
+        return pd.DataFrame([row]).set_index("method")
+
 
 class SdidEngine(Protocol):
     """Protocol every SDID engine adapter must satisfy.

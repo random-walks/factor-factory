@@ -69,6 +69,19 @@ class EventStudyResult:
             "diagnostics": self.diagnostics,
         }
 
+    def summary_table(self) -> pd.DataFrame:
+        """One-row summary table for tearsheet rendering (added v1.1.0, Batch 4)."""
+        row = {
+            "method": self.method,
+            "n_events": self.n_events,
+            "aar": self.average_abnormal_return,
+            "car": self.car_event_window,
+            "car_se": self.car_se,
+            "t_stat": self.car_t_stat,
+            "p_value": self.car_p_value,
+        }
+        return pd.DataFrame([row]).set_index("method")
+
 
 class EventStudyEngine(Protocol):
     """Protocol every event-study adapter must satisfy."""
