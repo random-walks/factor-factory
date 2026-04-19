@@ -120,9 +120,12 @@ addopts = "-ra -q --strict-markers"
 testpaths = ["factor_factory/tests"]
 filterwarnings = [
     "error",
-    # linearmodels/pandas interplay throws a few benign deprecation noises
+    # linearmodels / lifelines / differences interplay throws a few benign deprecation noises
     "ignore::DeprecationWarning:linearmodels",
     "ignore::FutureWarning:linearmodels",
+    "ignore::DeprecationWarning:lifelines",
+    "ignore::FutureWarning:lifelines",
+    "ignore::DeprecationWarning:differences",
     "ignore::PendingDeprecationWarning",
 ]
 
