@@ -13,6 +13,11 @@ htmlcov/
 build/
 dist/
 
+# Sphinx generated output (rebuilt per-CI run + on RTD)
+docs/_build/
+docs/apidocs/
+*.buildinfo.bak
+
 # jellycell — commit cache manifests (small JSON provenance), drop blobs/state
 **/.jellycell/cache/blobs/
 **/.jellycell/cache/state.db

@@ -124,10 +124,11 @@ path = "factor_factory/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["factor_factory"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"factor_factory/jellycell/_templates" = "factor_factory/jellycell/_templates"
-"factor_factory/jellycell/notebooks/_templates" = "factor_factory/jellycell/notebooks/_templates"
+# hatchling includes non-.py data files (Jinja .j2 templates, jellycell.toml
+# scaffold sources) recursively under packages = [...] — no force-include
+# needed. A prior `force-include` duplicated those paths and produced a
+# ZIP with duplicate local headers which PyPI rejects (see v1.0.0 release
+# run 24639372057 for the historical 400 response).
 
 [tool.pytest.ini_options]
 minversion = "8.0"
