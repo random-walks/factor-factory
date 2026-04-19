@@ -1,9 +1,13 @@
 # Getting started with factor-factory
 
-`factor-factory` is the shared factor-model + analysis-pipeline
-framework for the `random-walks` NYC OSS ecosystem. This doc walks
-through the v0.1 surface area: scaffold a showcase, build a panel,
-run a DiD, render the manuscripts.
+`factor-factory` is a domain-agnostic factor-model + analysis-pipeline
+framework. The same `Panel` shape hosts NYC-civic data, finance event
+studies, multi-arm RCTs, agronomic dose-response trials, and chemistry
+assays. This doc walks through the v0.1 surface area: scaffold a
+showcase, build a panel, run a DiD, render the manuscripts.
+
+For the full data-shape contract, see
+[`docs/design-contracts.md`](design-contracts.md).
 
 ## Install
 
@@ -35,8 +39,9 @@ and regenerates all five canonical manuscripts (`METHODOLOGY.md`,
 
 The `Panel` is the central data structure — a strict
 `MultiIndex(unit_id, period)` DataFrame plus metadata. See
-[`docs/og_context/03_specs/panel_contract.md`](og_context/03_specs/panel_contract.md)
-for the full schema.
+[`docs/design-contracts.md`](design-contracts.md) for the full schema.
+
+### Civic / DiD style
 
 ```python
 from datetime import date
@@ -52,17 +57,142 @@ event = TreatmentEvent(
     name="rat_pilot",
     treated_units=("MN-01", "MN-02"),
     treatment_date=date(2024, 6, 1),
-    geography="community_district",
+    dimension="community_district",
 )
 
 panel = Panel.from_records(
     records,
-    geography="community_district",
+    dimension="community_district",
     freq="ME",                       # month-end binning
     treatment_events=(event,),
     outcome_col="complaint_count",
 )
 ```
+
+### Finance event study
+
+Daily ticker × business day, multi-outcome (returns + abnormal returns),
+weighted by market cap. Note `freq=None` because business days don't
+fit into pandas' month-end / quarter-end rebinning:
+
+```python
+from datetime import date
+from factor_factory.tidy import Panel, PanelMetadata, Provenance, TreatmentEvent
+
+# Build the wide DataFrame yourself when you have multiple outcomes.
+metadata = PanelMetadata(
+    outcome_cols=("returns", "abnormal_returns"),
+    period_kind="timestamp",
+    freq=None,
+    dimension="ticker",
+    treatment_events=(
+        TreatmentEvent(
+            name="earnings_event",
+            treated_units=tuple(treated_tickers),
+            treatment_date=date(2024, 7, 15),
+            dimension="ticker",
+        ),
+    ),
+    weights_col="market_cap_mm",
+    provenance=Provenance(
+        data_source="bloomberg.com/api/v3",
+        license="proprietary",
+        citation="Author, Year",
+    ),
+)
+panel = Panel(prebuilt_df, metadata)
+```
+
+### Multi-arm RCT
+
+Three arms (placebo, low_dose, high_dose); categorical treatments
+produce per-event `arm__<name>` columns:
+
+```python
+events = (
+    TreatmentEvent(
+        name="low_dose",
+        treated_units=tuple(low_dose_patient_ids),
+        treatment_date=enrolment_date,
+        dimension="patient_id",
+        kind="categorical",
+        arm="low_dose",
+    ),
+    TreatmentEvent(
+        name="high_dose",
+        treated_units=tuple(high_dose_patient_ids),
+        treatment_date=enrolment_date,
+        dimension="patient_id",
+        kind="categorical",
+        arm="high_dose",
+    ),
+)
+
+panel = Panel.from_records(
+    visit_records,
+    dimension="patient_id",
+    freq="W",
+    treatment_events=events,
+    outcome_col="symptom_score",
+    provenance=Provenance(
+        ethics_note="IRB #2024-001, approved 2024-02-10",
+        data_source="REDCap study export",
+    ),
+)
+```
+
+### Continuous treatment intensity (agronomic dose-response)
+
+```python
+event = TreatmentEvent(
+    name="fertilizer_program",
+    treated_units=tuple(treated_plot_ids),
+    treatment_date=date(2024, 3, 1),
+    dimension="plot_id",
+    kind="continuous",
+    intensity=80.0,                  # kg/ha
+)
+panel = Panel.from_records(
+    plot_records,
+    dimension="plot_id",
+    freq="6ME",
+    treatment_events=(event,),
+    outcome_col="yield_tons_per_ha",
+    weights_col="plot_area_ha",
+)
+```
+
+The aggregate `treatment` column is float64 (mask × intensity).
+
+### Non-time periods (chemistry dose-response)
+
+`period_kind="float"` means the period axis is continuous (e.g.,
+concentration in μM). No time, no `freq`:
+
+```python
+panel = Panel.from_records(
+    assay_records,
+    dimension="compound_id",
+    period_kind="float",
+    freq=None,
+    outcome_col="response_fraction",
+)
+```
+
+For analyses with a treatment threshold on a non-time panel, use
+`period_value=` instead of `treatment_date=` on the event:
+
+```python
+TreatmentEvent(
+    name="ic50_above_threshold",
+    treated_units=tuple(potent_compounds),
+    period_value=1.0,
+    dimension="compound_id",
+    kind="binary",
+)
+```
+
+### Custom extractors
 
 Records can be dicts (default) or any object exposing the right
 attributes. For non-default record shapes, pass extractor callables:
@@ -70,11 +200,23 @@ attributes. For non-default record shapes, pass extractor callables:
 ```python
 panel = Panel.from_records(
     domain_specific_records,
-    geography="station",
+    dimension="station",
     freq="ME",
     unit_id_extractor=lambda r: r.station_id,
     period_extractor=lambda r: r.observed_at,
 )
+```
+
+### Per-event columns (staggered DiD)
+
+When multiple events are present, `from_records` attaches per-event
+columns named `treatment__<event_name>` / `treated_unit__<event_name>` /
+`post__<event_name>`, plus aggregate columns. Use the helper to fit
+engines against a specific event:
+
+```python
+treatment_col, treated_col, post_col = panel.per_event_columns("alpha")
+results = engines.did.estimate(panel, methods=("twfe",), treatment=treatment_col)
 ```
 
 ## Running a DiD

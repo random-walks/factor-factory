@@ -21,7 +21,13 @@ _ENV = Environment(
     autoescape=False,
 )
 
-_FREEZE_MARKER = re.compile(r"<!--\s*tearsheet:freeze\s*-->", re.IGNORECASE)
+# Freeze marker must be on its own line (anchored with ^...$) so that
+# documentation prose that quotes the marker text doesn't accidentally
+# match. Multi-line search.
+_FREEZE_MARKER = re.compile(
+    r"^<!--\s*tearsheet:freeze\s*-->\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def render_template(

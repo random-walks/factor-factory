@@ -119,3 +119,35 @@ def test_tearsheet_freeze_marker_preserves_tail(tmp_path: Path) -> None:
     tearsheets.findings("demo", output_path=out_path, overwrite=True)
     new_text = out_path.read_text()
     assert "MY CUSTOM TAIL CONTENT" in new_text
+
+
+def test_tearsheet_freeze_marker_only_matches_line_anchored(tmp_path: Path) -> None:
+    """Regression: doc text quoting the marker must NOT be treated as the marker itself.
+
+    Earlier the regex matched any occurrence of ``<!-- tearsheet:freeze -->``,
+    including a quoted reference inside doc prose at the top of the file.
+    That caused the splice logic to preserve everything from the doc-comment
+    onward, freezing the auto-generated content forever. The marker is now
+    line-anchored.
+    """
+    project_dir = tmp_path / "demo"
+    project_dir.mkdir()
+    (project_dir / "manuscripts").mkdir()
+    out_path = project_dir / "manuscripts" / "M.md"
+
+    initial = (
+        "# top\n"
+        "> a quote referencing the marker `<!-- tearsheet:freeze -->` inline\n"
+        "## section\n"
+        "OLD CONTENT\n"
+        "<!-- tearsheet:freeze -->\n"
+        "preserved\n"
+    )
+    out_path.write_text(initial)
+    tearsheets.findings("demo", output_path=out_path, overwrite=True)
+    final = out_path.read_text()
+    # The OLD CONTENT must not survive (the inline-quoted marker should not
+    # have been treated as the splice point).
+    assert "OLD CONTENT" not in final
+    # The legitimate tail must survive.
+    assert "preserved" in final

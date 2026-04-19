@@ -1,4 +1,16 @@
-"""Per-record companion view that retains lat/lon for record-level analyses."""
+"""Per-record companion view for record-level analyses.
+
+A ``RecordView`` is a flat per-record DataFrame that lives alongside
+the aggregated ``Panel``. Required columns: ``unit_id`` and ``period``
+(matching the parent panel). Beyond that, any per-record columns are
+allowed: lat/lon for spatial / RDD analyses, clinical covariates for
+patient-level work, asset-level metadata for finance, etc.
+
+Geographic convenience: when ``latitude`` and ``longitude`` columns
+are present, ``distance_to_point()`` returns the haversine distance
+from each record to a target lon/lat — useful as the running variable
+for record-level RDD via rdrobust.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 from math import asin, cos, radians, sin, sqrt
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -16,17 +29,17 @@ _EARTH_KM = 6371.0
 
 @dataclass(frozen=True)
 class RecordView:
-    """Per-record DataFrame retaining lat/lon, period, unit_id.
+    """Per-record DataFrame retaining ``(unit_id, period)`` plus arbitrary extras.
 
-    Required for record-level RDD via rdrobust and within-unit spatial
-    heterogeneity analysis. Built by ``Panel.from_records`` when
-    ``record_view=True``.
+    Required columns: ``unit_id``, ``period``. Conventional optional
+    columns include ``latitude`` / ``longitude`` (for spatial work)
+    but any extras are allowed.
     """
 
-    df: pd.DataFrame  # required columns: latitude, longitude, unit_id, period
+    df: pd.DataFrame
     schema_version: int = 1
 
-    REQUIRED_COLUMNS = ("latitude", "longitude", "unit_id", "period")
+    REQUIRED_COLUMNS = ("unit_id", "period")
 
     def __post_init__(self) -> None:
         missing = [c for c in self.REQUIRED_COLUMNS if c not in self.df.columns]
@@ -35,25 +48,40 @@ class RecordView:
                 f"RecordView missing required columns: {missing}. Got {list(self.df.columns)}."
             )
 
+    @property
+    def has_latlon(self) -> bool:
+        return "latitude" in self.df.columns and "longitude" in self.df.columns
+
     def filter(
         self,
         *,
-        period_start: date | pd.Timestamp | None = None,
-        period_end: date | pd.Timestamp | None = None,
-        unit_ids: tuple[str, ...] | None = None,
+        period_start: date | pd.Timestamp | int | float | None = None,
+        period_end: date | pd.Timestamp | int | float | None = None,
+        unit_ids: tuple[Any, ...] | None = None,
     ) -> RecordView:
         """Sub-select records by period range or unit ID set."""
         df = self.df
         if period_start is not None:
-            df = df[df["period"] >= pd.Timestamp(period_start)]
+            anchor = pd.Timestamp(period_start) if isinstance(period_start, date) else period_start
+            df = df[df["period"] >= anchor]
         if period_end is not None:
-            df = df[df["period"] <= pd.Timestamp(period_end)]
+            anchor = pd.Timestamp(period_end) if isinstance(period_end, date) else period_end
+            df = df[df["period"] <= anchor]
         if unit_ids is not None:
             df = df[df["unit_id"].isin(unit_ids)]
         return replace(self, df=df.reset_index(drop=True))
 
     def distance_to_point(self, lon: float, lat: float) -> pd.Series:
-        """Haversine distance in km from each record to a single point."""
+        """Haversine distance in km from each record to a single point.
+
+        Requires ``latitude`` and ``longitude`` columns; raises ``ValueError``
+        otherwise.
+        """
+        if not self.has_latlon:
+            raise ValueError(
+                "distance_to_point requires latitude + longitude columns on "
+                f"the RecordView. Got: {list(self.df.columns)}."
+            )
         rec_lat = self.df["latitude"].astype(float).to_numpy()
         rec_lon = self.df["longitude"].astype(float).to_numpy()
         return pd.Series(

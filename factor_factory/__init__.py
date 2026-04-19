@@ -16,11 +16,12 @@ Top-level surface:
 
 from . import diagnostics, engines, factors, jellycell
 from ._version import __version__
-from .tidy import Panel, PanelMetadata, RecordView, TreatmentEvent
+from .tidy import Panel, PanelMetadata, Provenance, RecordView, TreatmentEvent
 
 __all__ = [
     "Panel",
     "PanelMetadata",
+    "Provenance",
     "RecordView",
     "TreatmentEvent",
     "__version__",

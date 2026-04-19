@@ -17,10 +17,10 @@ new.)
 ## 2. Data
 
 {% if panel_metadata %}
-The analysis uses a panel at the **{{ panel_metadata.geography }}** level,
-binned to **{{ panel_metadata.freq }}** periods, with outcome
-`{{ panel_metadata.outcome_col }}`. {% if panel_metadata.treatment_events %}Treatment events:
-{% for ev in panel_metadata.treatment_events %}*{{ ev.name }}* ({{ ev.treated_units|length }} units, {{ ev.treatment_date }}){{ ", " if not loop.last else "." }}{% endfor %}{% endif %}
+The analysis uses a panel at the **{{ panel_metadata.dimension }}** level,
+{% if panel_metadata.freq %}binned to **{{ panel_metadata.freq }}** periods, {% endif %}with primary outcome
+`{{ panel_metadata.outcome_cols[0] }}`{% if panel_metadata.outcome_cols|length > 1 %} (plus secondaries: {{ panel_metadata.outcome_cols[1:] | join(", ") }}){% endif %}. {% if panel_metadata.treatment_events %}Treatment events:
+{% for ev in panel_metadata.treatment_events %}*{{ ev.name }}* ({{ ev.treated_units|length }} units, {{ ev.kind }}{% if ev.treatment_date %}, {{ ev.treatment_date }}{% endif %}){{ ", " if not loop.last else "." }}{% endfor %}{% endif %}
 {% endif %}
 
 ## 3. Methodology

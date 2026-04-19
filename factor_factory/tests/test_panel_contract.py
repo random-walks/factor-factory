@@ -138,15 +138,31 @@ def test_panel_to_from_parquet(tmp_path) -> None:
     assert reloaded.outcome_col == panel.outcome_col
 
 
-def test_panel_construction_rejects_bad_outcome_dtype() -> None:
+def test_panel_construction_rejects_non_numeric_outcome() -> None:
+    """Outcomes must be numeric (any int/float). Object/string dtype is rejected."""
     panel = small_treatment_effect_panel()
     bad = panel.df.copy()
-    bad["outcome"] = bad["outcome"].astype("int64")
+    bad["outcome"] = bad["outcome"].astype(str)
     metadata = PanelMetadata(
         geography="synthetic_unit",
         freq="ME",
         outcome_col="outcome",
         record_count=len(bad),
     )
-    with pytest.raises(ValueError, match="float"):
+    with pytest.raises(ValueError, match="numeric"):
         Panel(bad, metadata)
+
+
+def test_panel_construction_accepts_integer_outcome() -> None:
+    """RCT counts / survival indicators are integer outcomes — no float coercion forced."""
+    panel = small_treatment_effect_panel()
+    int_df = panel.df.copy()
+    int_df["outcome"] = int_df["outcome"].round().astype("int64")
+    metadata = PanelMetadata(
+        geography="synthetic_unit",
+        freq="ME",
+        outcome_col="outcome",
+        record_count=len(int_df),
+    )
+    rebuilt = Panel(int_df, metadata)
+    assert rebuilt.df["outcome"].dtype == "int64"

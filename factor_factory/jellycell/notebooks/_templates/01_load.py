@@ -41,14 +41,14 @@ for unit in units:
 
 panel = Panel.from_records(
     records,
-    geography="community_district",
+    dimension="community_district",
     freq="ME",
     treatment_events=(
         TreatmentEvent(
             name="example_pilot",
             treated_units=treated_units,
             treatment_date=date(2024, 6, 1),
-            geography="community_district",
+            dimension="community_district",
         ),
     ),
     outcome_col="complaint_count",
