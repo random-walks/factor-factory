@@ -189,6 +189,7 @@ module = [
     "pandas_datareader.*",
     "rdrobust.*",
     "pysyncon.*",
+    "sklearn.*",
     "ruptures.*",
     "bayesloop.*",
     "sktime.*",
