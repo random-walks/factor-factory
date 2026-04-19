@@ -16,9 +16,17 @@ of them requires a major bump post-1.0.
 
 _(empty)_
 
-## [1.0.1] — 2026-04-19
+## [1.0.2] — 2026-04-19
 
 Small post-v1.0.0 housekeeping pass before downstream showcase adoption.
+
+**Note on v1.0.1:** the v1.0.1 tag was cut in the same development
+window but its release workflow failed at the `Set up job` step
+because `astral-sh/setup-uv@v8` was used — upstream hasn't published
+a `v8` moving tag (latest moving tag is `v7.6`; only `v8.1.0` exact
+is available). No artifacts were published to PyPI or attached to a
+GitHub Release under v1.0.1. Rather than rewrite history, v1.0.1 is
+abandoned and this patch bumps to v1.0.2 with the exact-version pin.
 
 ### Changed
 
@@ -28,7 +36,8 @@ Small post-v1.0.0 housekeeping pass before downstream showcase adoption.
   - `actions/checkout` v4 → v6
   - `actions/upload-artifact` v4 → v7
   - `actions/download-artifact` v4 → v8
-  - `astral-sh/setup-uv` v3 → v8
+  - `astral-sh/setup-uv` v3 → v8.1.0 (upstream has not published a
+    `v8` moving tag yet — pinned to exact version)
   - `softprops/action-gh-release` v2 → v3
   - `pypa/gh-action-pypi-publish@release/v1` stays (moving tag by
     design per the upstream maintainer's convention).
@@ -38,6 +47,10 @@ Small post-v1.0.0 housekeeping pass before downstream showcase adoption.
 - `.gitignore` adds `.claude/scheduled_tasks.lock` (MCP
   scheduled-tasks runtime-state file that was appearing as untracked
   on every developer clone with the plugin enabled).
+
+## [1.0.1] — 2026-04-19 — withdrawn (workflow pin typo)
+
+Tag exists on GitHub but no artifacts published. See v1.0.2 notes.
 
 ## [1.0.0] — 2026-04-19 — v1.0 roadmap sweep (batches 0–16)
 
@@ -443,7 +456,8 @@ First stable release; first PyPI publication.
 - LICENSE (MIT), `pyproject.toml` placeholder, `README.md`,
   `AGENTS.md`, `CLAUDE.md` (delegating to AGENTS.md).
 
-[unreleased]: https://github.com/random-walks/factor-factory/compare/v1.0.1...HEAD
+[unreleased]: https://github.com/random-walks/factor-factory/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/random-walks/factor-factory/compare/v1.0.0...v1.0.2
 [1.0.1]: https://github.com/random-walks/factor-factory/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/random-walks/factor-factory/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/random-walks/factor-factory/releases/tag/v0.1.0
