@@ -43,10 +43,10 @@ def scaffold(name: str, *, into: Path | None = None) -> Path:
 
     for src_name, rel_dest in _FILES_TO_COPY:
         src = _TEMPLATE_DIR / src_name
-        body = src.read_text().replace("__PROJECT__", name)
+        body = src.read_text(encoding="utf-8").replace("__PROJECT__", name)
         dest = project_dir / rel_dest
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(body)
+        dest.write_text(body, encoding="utf-8")
 
     # Render starter manuscripts so the four canonical files exist
     # immediately after scaffolding (before the notebook has even run).

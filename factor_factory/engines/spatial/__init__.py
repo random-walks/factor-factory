@@ -53,7 +53,9 @@ def estimate(
         raise ValueError("methods must be non-empty.")
     return SpatialResults(
         [
-            registry[m].fit(panel, outcome=outcome, coordinates=coordinates, **engine_specific_kwargs)
+            registry[m].fit(
+                panel, outcome=outcome, coordinates=coordinates, **engine_specific_kwargs
+            )
             for m in methods
         ]
     )

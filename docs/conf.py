@@ -73,7 +73,7 @@ autodoc2_packages = [
     {
         "path": "../factor_factory",
         "auto_mode": True,
-        "exclude_dirs": ["tests", "jellycell/_templates", "jellycell/notebooks/_templates"],
+        "exclude_dirs": ["tests"],
     },
 ]
 autodoc2_output_dir = "apidocs"
@@ -82,6 +82,15 @@ autodoc2_hidden_objects = ["dunder", "private", "inherited"]
 autodoc2_skip_module_regexes = [
     r".*__main__",
     r".*\._templates.*",
+    r".*notebooks\._templates.*",
+    r".*notebooks\._scaffold_templates.*",
+]
+
+# Silence warnings about autodoc2 duplicate items from the scaffolded
+# notebook templates — they're not meant to be part of the API docs.
+suppress_warnings = [
+    "autodoc2.dup_item",
+    "myst.xref_missing",  # og_context/* refs are internal design docs, not Sphinx-built.
 ]
 
 # -- HTML output --------------------------------------------------------------

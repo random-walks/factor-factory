@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from factor_factory.engines.het_te import estimate as estimate_het_te
 from factor_factory.engines.het_te import registry as het_te_registry
 from factor_factory.engines.scm import estimate as estimate_scm
@@ -15,11 +17,13 @@ from factor_factory.tests._fixtures.cross_domain import (
 )
 
 
-def test_bcf_registered() -> None:
+def test_bcf_registered_when_sklearn_available() -> None:
+    pytest.importorskip("sklearn")
     assert "bcf" in het_te_registry
 
 
 def test_bcf_recovers_ate_on_synthetic() -> None:
+    pytest.importorskip("sklearn")
     import numpy as np
     import pandas as pd
 
@@ -32,16 +36,20 @@ def test_bcf_recovers_ate_on_synthetic() -> None:
     T = (X[:, 0] + rng.normal(0, 1, size=n) > 0).astype(int)
     Y = 2.0 * T + X[:, 0] + rng.normal(0, 0.3, size=n)
 
-    df = pd.DataFrame(
-        {
-            "unit_id": [f"u{i:03d}" for i in range(n)],
-            "period": [0] * n,
-            "y": Y,
-            "t": T.astype(float),
-            "x1": X[:, 0],
-            "x2": X[:, 1],
-        }
-    ).set_index(["unit_id", "period"]).sort_index()
+    df = (
+        pd.DataFrame(
+            {
+                "unit_id": [f"u{i:03d}" for i in range(n)],
+                "period": [0] * n,
+                "y": Y,
+                "t": T.astype(float),
+                "x1": X[:, 0],
+                "x2": X[:, 1],
+            }
+        )
+        .set_index(["unit_id", "period"])
+        .sort_index()
+    )
     meta = PanelMetadata(
         outcome_cols=("y",),
         period_kind="integer",

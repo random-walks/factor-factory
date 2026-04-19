@@ -1,0 +1,2268 @@
+# factor-factory
+
+A domain-agnostic factor-model + analysis-pipeline framework with first-class jellycell integration, a Protocol-based pluggable engine pattern, and first-class implementations of two methods the Python ecosystem was missing entirely:
+
+- **Synthetic Difference-in-Differences** (Arkhangelsky et al. 2021)
+- **Four-way Mediation Decomposition** (VanderWeele 2014)
+
+The same `Panel` shape hosts NYC-civic data, finance event studies, clinical trials, agronomic dose-response, chemistry assays, climate anomaly studies, education-intervention evaluations, energy-meter data, marketing A/B tests, macroeconomic country panels, ecological biodiversity surveys, and social-network diffusion cascades. Add a new domain by writing extractors; add a new method by writing a ~150-LOC engine adapter that fits the Protocol.
+
+## Install
+
+```bash
+pip install factor-factory[did,survival,event-study]
+# or everything currently shipping:
+pip install factor-factory[all]
+```
+
+## Scaffold a showcase
+
+```bash
+python -m factor_factory scaffold my-showcase
+cd my-showcase
+python notebooks/01_load.py
+```
+
+## Where to next
+
+```{toctree}
+:maxdepth: 2
+:caption: User guide
+
+getting-started
+supported-domains
+design-contracts
+jellycell-integration
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Cookbook
+
+cookbook/did-twfe
+cookbook/did-callaway-santanna
+cookbook/survival-km
+cookbook/survival-cox
+cookbook/event-study-market-adjusted
+cookbook/sdid
+cookbook/mediation-four-way
+cookbook/rdd
+cookbook/scm
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Migration
+
+migration/v0-to-v1
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Reference
+
+reference/architecture
+reference/contracts
+reference/piggyback-map
+apidocs/index
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Development
+
+development/contributing
+development/adding-an-engine
+development/releasing
+development/dev-setup
+development/testing
+```
+
+## Status at a glance
+
+| Layer | Status |
+|---|---|
+| Tidy layer (Panel, TreatmentEvent, RecordView, Provenance) | ✅ |
+| Diagnostics (SMD, parallel trends, residuals, assertions) | ✅ |
+| Engines: DiD (TWFE + Callaway-Sant'Anna) | ✅ |
+| Engines: Survival (KM + Cox PH) | ✅ |
+| Engines: Event Study (market-adjusted) | ✅ |
+| Engines: Synthetic DiD | ✅ |
+| Engines: Four-way Mediation | ✅ |
+| Jellycell integration (5 tearsheet renderers) | ✅ |
+| CI (pytest 3.12 + 3.13, ruff, mypy strict) | ✅ |
+| Cross-domain conformance fixtures (15 synthetic panels) | ✅ |
+| Sphinx + Read the Docs site | ✅ (you're reading it) |
+| PyPI release | ⏳ First tag imminent |
+
+Engine families landing in v0.2 → v1.12: RDD, SCM (+augmented, +matrix-completion), heterogeneous treatment effects (causal forests, X/R-learner, BCF), DoubleML, changepoint, STL/Prophet, panel regression (HDFE), inequality, spatial, reporting-bias, Hawkes, climate, diffusion. See [`docs/og_context/06_post_v0.1_roadmap.md`](https://github.com/random-walks/factor-factory/blob/main/docs/og_context/06_post_v0.1_roadmap.md) for the full batch plan.
+
+
+# Getting started with factor-factory
+
+`factor-factory` is a domain-agnostic factor-model + analysis-pipeline
+framework. The same `Panel` shape hosts NYC-civic data, finance event
+studies, multi-arm RCTs, agronomic dose-response trials, and chemistry
+assays. This doc walks through the v0.1 surface area: scaffold a
+showcase, build a panel, run a DiD, render the manuscripts.
+
+For the full data-shape contract, see
+[`docs/design-contracts.md`](design-contracts.md).
+
+## Install
+
+```bash
+pip install factor-factory[did]    # default + linearmodels for the TWFE DiD engine
+# or:
+pip install factor-factory[all]    # everything (will grow as engines land in v0.2+)
+```
+
+The default install gets you `tidy`, `diagnostics`, and `jellycell`.
+Engine families are optional extras (`[did]`, `[rdd]`, `[scm]`, ...).
+See [`pyproject.toml`](../pyproject.toml) for the current set.
+
+## 30-second tour
+
+```bash
+python -m factor_factory scaffold my-showcase
+cd my-showcase
+uv run --with 'factor-factory[did]' python notebooks/01_load.py
+```
+
+The scaffolded notebook builds a synthetic panel, runs a TWFE DiD via
+`factor_factory.engines.did.estimate`, saves a parallel-trends figure,
+and regenerates all five canonical manuscripts (`METHODOLOGY.md`,
+`DIAGNOSTICS_CHECKLIST.md`, `FINDINGS.md`, `MANUSCRIPT.md`,
+`AUDIT.md`). Edit the synthetic-records block to swap in real data.
+
+## Building a Panel
+
+The `Panel` is the central data structure — a strict
+`MultiIndex(unit_id, period)` DataFrame plus metadata. See
+[`docs/design-contracts.md`](design-contracts.md) for the full schema.
+
+### Civic / DiD style
+
+```python
+from datetime import date
+from factor_factory.tidy import Panel, TreatmentEvent
+
+records = [
+    {"community_district": "MN-01", "created_date": "2024-01-15"},
+    {"community_district": "MN-01", "created_date": "2024-08-15"},
+    # ...
+]
+
+event = TreatmentEvent(
+    name="rat_pilot",
+    treated_units=("MN-01", "MN-02"),
+    treatment_date=date(2024, 6, 1),
+    dimension="community_district",
+)
+
+panel = Panel.from_records(
+    records,
+    dimension="community_district",
+    freq="ME",                       # month-end binning
+    treatment_events=(event,),
+    outcome_col="complaint_count",
+)
+```
+
+### Finance event study
+
+Daily ticker × business day, multi-outcome (returns + abnormal returns),
+weighted by market cap. Note `freq=None` because business days don't
+fit into pandas' month-end / quarter-end rebinning:
+
+```python
+from datetime import date
+from factor_factory.tidy import Panel, PanelMetadata, Provenance, TreatmentEvent
+
+# Build the wide DataFrame yourself when you have multiple outcomes.
+metadata = PanelMetadata(
+    outcome_cols=("returns", "abnormal_returns"),
+    period_kind="timestamp",
+    freq=None,
+    dimension="ticker",
+    treatment_events=(
+        TreatmentEvent(
+            name="earnings_event",
+            treated_units=tuple(treated_tickers),
+            treatment_date=date(2024, 7, 15),
+            dimension="ticker",
+        ),
+    ),
+    weights_col="market_cap_mm",
+    provenance=Provenance(
+        data_source="bloomberg.com/api/v3",
+        license="proprietary",
+        citation="Author, Year",
+    ),
+)
+panel = Panel(prebuilt_df, metadata)
+```
+
+### Multi-arm RCT
+
+Three arms (placebo, low_dose, high_dose); categorical treatments
+produce per-event `arm__<name>` columns:
+
+```python
+events = (
+    TreatmentEvent(
+        name="low_dose",
+        treated_units=tuple(low_dose_patient_ids),
+        treatment_date=enrolment_date,
+        dimension="patient_id",
+        kind="categorical",
+        arm="low_dose",
+    ),
+    TreatmentEvent(
+        name="high_dose",
+        treated_units=tuple(high_dose_patient_ids),
+        treatment_date=enrolment_date,
+        dimension="patient_id",
+        kind="categorical",
+        arm="high_dose",
+    ),
+)
+
+panel = Panel.from_records(
+    visit_records,
+    dimension="patient_id",
+    freq="W",
+    treatment_events=events,
+    outcome_col="symptom_score",
+    provenance=Provenance(
+        ethics_note="IRB #2024-001, approved 2024-02-10",
+        data_source="REDCap study export",
+    ),
+)
+```
+
+### Continuous treatment intensity (agronomic dose-response)
+
+```python
+event = TreatmentEvent(
+    name="fertilizer_program",
+    treated_units=tuple(treated_plot_ids),
+    treatment_date=date(2024, 3, 1),
+    dimension="plot_id",
+    kind="continuous",
+    intensity=80.0,                  # kg/ha
+)
+panel = Panel.from_records(
+    plot_records,
+    dimension="plot_id",
+    freq="6ME",
+    treatment_events=(event,),
+    outcome_col="yield_tons_per_ha",
+    weights_col="plot_area_ha",
+)
+```
+
+The aggregate `treatment` column is float64 (mask × intensity).
+
+### Non-time periods (chemistry dose-response)
+
+`period_kind="float"` means the period axis is continuous (e.g.,
+concentration in μM). No time, no `freq`:
+
+```python
+panel = Panel.from_records(
+    assay_records,
+    dimension="compound_id",
+    period_kind="float",
+    freq=None,
+    outcome_col="response_fraction",
+)
+```
+
+For analyses with a treatment threshold on a non-time panel, use
+`period_value=` instead of `treatment_date=` on the event:
+
+```python
+TreatmentEvent(
+    name="ic50_above_threshold",
+    treated_units=tuple(potent_compounds),
+    period_value=1.0,
+    dimension="compound_id",
+    kind="binary",
+)
+```
+
+### Custom extractors
+
+Records can be dicts (default) or any object exposing the right
+attributes. For non-default record shapes, pass extractor callables:
+
+```python
+panel = Panel.from_records(
+    domain_specific_records,
+    dimension="station",
+    freq="ME",
+    unit_id_extractor=lambda r: r.station_id,
+    period_extractor=lambda r: r.observed_at,
+)
+```
+
+### Per-event columns (staggered DiD)
+
+When multiple events are present, `from_records` attaches per-event
+columns named `treatment__<event_name>` / `treated_unit__<event_name>` /
+`post__<event_name>`, plus aggregate columns. Use the helper to fit
+engines against a specific event:
+
+```python
+treatment_col, treated_col, post_col = panel.per_event_columns("alpha")
+results = engines.did.estimate(panel, methods=("twfe",), treatment=treatment_col)
+```
+
+## Running a DiD
+
+The Phase-1 DiD engine is `TwfeEngine` (two-way fixed effects via
+`linearmodels.PanelOLS`). The Phase-2 expansion will add
+Callaway-Sant'Anna, Sun-Abraham, and Borusyak-Jaravel-Spiess as
+peer adapters under the same Protocol.
+
+```python
+from factor_factory.engines.did import estimate
+
+results = estimate(panel, methods=("twfe",), cluster="unit_id")
+print(results.summary_table())
+#         att        se     ci_lo     ci_hi  p_value    n
+# method
+# twfe   4.52      0.37      3.80      5.24      0.0   480
+```
+
+`results.summary_table()` is a tidy DataFrame; `results.to_records()`
+gives a JSON-serializable list (handy for `jc.save`). Each
+`DidResult` is a frozen dataclass with `att`, `se`, `ci_95`,
+`p_value`, `n`, plus optional `cohort_atts`, `diagnostics`, `meta`.
+
+## Diagnostics
+
+Four canonical diagnostics ship in v0.1:
+
+```python
+from factor_factory.diagnostics import (
+    multi_index_assertions,            # structural-integrity guardrail
+    standardized_mean_differences,     # treated/control covariate balance
+    parallel_trends_plot,              # pre-treatment visual
+    residual_diagnostics,              # JB + SW (+ Breusch-Pagan if fitted_values=)
+)
+
+multi_index_assertions(panel)
+
+smd = standardized_mean_differences(
+    panel, treated_col="treated_unit", covariates=("complaint_count",),
+)
+
+fig = parallel_trends_plot(panel)
+fig.savefig("artifacts/figures/parallel_trends.png")
+
+diag = residual_diagnostics(
+    residuals=fitted_residuals,
+    fitted_values=fitted_values,
+)
+```
+
+More diagnostics (Cook's distance, missingness, MDE, multi-year
+parallel-trends) ship in v0.2 alongside the engine fan-out.
+
+## Tearsheets + manuscripts
+
+Five auto-renderers, one per canonical manuscript:
+
+```python
+from factor_factory.jellycell import tearsheets
+
+tearsheets.methodology("my-showcase", overwrite=True)
+tearsheets.diagnostics("my-showcase", overwrite=True)
+tearsheets.findings("my-showcase", overwrite=True)
+tearsheets.manuscript("my-showcase", overwrite=True)
+tearsheets.audit("my-showcase", overwrite=True)
+```
+
+Each renderer reads from `<project>/data/`, `<project>/artifacts/`,
+and any panel `.meta.json` sidecars to populate the templated section.
+Anything below the `<!-- tearsheet:freeze -->` marker in the manuscript
+is preserved on re-render — edit interpretation, references, etc.,
+without losing them.
+
+## Notebook conventions
+
+Showcase notebooks built against factor-factory follow the rules in
+[`jellycell-integration.md`](jellycell-integration.md). The two
+load-bearing ones:
+
+1. Every cell that uses external imports starts with `setup()`:
+
+   ```python
+   from factor_factory.jellycell.cells import setup
+   ns = setup(also=("matplotlib.pyplot as plt",))
+   jc, pd, np, plt, Image = ns["jc"], ns["pd"], ns["np"], ns["plt"], ns["Image"]
+   ```
+
+   This is the workaround for jellycell #J1 (cached `jc.setup` cells
+   silently dropping their imports). Verbose but reliable.
+
+2. Pre-rendered images go through `from_path`, not raw `Image(...)`:
+
+   ```python
+   from factor_factory.jellycell.figure import from_path
+   from_path("artifacts/figures/figure-1.png", caption="...")
+   ```
+
+   Workaround for jellycell #J2.
+
+## Dogfood reference notebook
+
+The shape a downstream showcase notebook takes against factor-factory
+v0.1 is reproduced below. The scaffolded `notebooks/01_load.py`
+(generated by `python -m factor_factory scaffold <name>`) is a
+working version of this; the snippet below distils it down to the
+canonical idioms.
+
+```python
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["factor-factory[did]"]
+# ///
+
+# %% tags=["jc.load", "name=panel"]
+from factor_factory.jellycell.cells import setup
+ns = setup(also=("matplotlib.pyplot as plt",))
+jc, pd, np, plt = ns["jc"], ns["pd"], ns["np"], ns["plt"]
+
+from datetime import date
+from factor_factory.tidy import Panel, TreatmentEvent
+from factor_factory.engines.did import estimate
+from factor_factory.diagnostics import parallel_trends_plot
+
+# Synthetic placeholder records — swap in real data later.
+rng = np.random.default_rng(20260419)
+units = [f"unit-{i:02d}" for i in range(20)]
+periods = pd.date_range("2023-01-31", periods=24, freq="ME")
+records = [
+    {"community_district": u, "created_date": p}
+    for u in units
+    for p in periods
+    for _ in range(int(rng.integers(40, 60)))
+]
+panel = Panel.from_records(
+    records,
+    geography="community_district",
+    freq="ME",
+    treatment_events=(
+        TreatmentEvent(
+            name="example_pilot",
+            treated_units=tuple(units[:10]),
+            treatment_date=date(2024, 6, 1),
+            geography="community_district",
+        ),
+    ),
+)
+panel.to_parquet("data/panel.parquet")
+results = estimate(panel, methods=("twfe",), cluster="unit_id")
+jc.save(results.to_records(), "artifacts/did_results.json", caption="DiD ATT (TWFE)")
+
+fig = parallel_trends_plot(panel)
+fig.savefig("artifacts/figures/parallel_trends.png", dpi=120)
+plt.close(fig)
+print(results.summary_table())
+
+# %% tags=["jc.step", "name=tearsheets", "deps=panel"]
+from factor_factory.jellycell.cells import setup
+ns = setup()
+from factor_factory.jellycell import tearsheets
+for name in ("methodology", "diagnostics", "findings", "manuscript", "audit"):
+    getattr(tearsheets, name)("my-showcase", overwrite=True)
+```
+
+What this buys you, line-by-line against the canonical jellycell
+acceptance criteria:
+
+- All cells run cleanly under `jellycell run` (the cells use the
+  `setup()` workaround + the standard jc API).
+- `jellycell render` produces an HTML catalogue (default render
+  path, no special integration needed).
+- `jellycell lint` passes (the cells declare their `deps=`,
+  artifacts go via `jc.save`, and pyarrow is a default factor-factory
+  dep so `jc.table` is available downstream).
+- Notebook source is short — the manuscripts are auto-generated
+  rather than hand-authored.
+- The four canonical manuscripts (METHODOLOGY, DIAGNOSTICS_CHECKLIST,
+  FINDINGS, MANUSCRIPT, AUDIT) are produced by the `tearsheets.*`
+  calls in the second cell.
+- At least one `DidResult` is produced via `estimate(panel,
+  methods=("twfe",))`.
+
+## Further reading
+
+- [`docs/jellycell-integration.md`](jellycell-integration.md) — the
+  cell conventions + workaround rationale.
+- [`docs/og_context/`](og_context/README.md) — full design rationale,
+  per-layer specs, and the multi-phase implementation plan.
+
+
+# Supported domains + extension patterns
+
+factor-factory's central abstraction is **domain-agnostic**: the same
+`Panel` shape, the same engine Protocol pattern, and the same
+jellycell tearsheet pipeline serve every analytical domain that maps
+naturally to "units × periods + treatments + outcomes." This doc lays
+out which domains the framework already covers, where new frontier
+methods plug in, and which areas are deliberately out of scope.
+
+If you're building an analysis in a domain not listed below, the
+extension patterns at the bottom should let you wire it up in an
+afternoon — and a one-PR contribution back makes it canonical for
+the next consumer.
+
+## Domains shipped today
+
+Every row below has a synthetic fixture under
+`factor_factory.tests._fixtures.cross_domain` and a worked example
+in [`getting-started.md`](getting-started.md).
+
+| Domain | Fixture | Panel shape | Treatment shape | Engines |
+|---|---|---|---|---|
+| **NYC-civic / public policy** | `staggered_did_panel`, `synthetic_panels.*` | community-district × month-end | binary, multi-event staggered | DiD: `twfe`, `cs`, `sdid` |
+| **Finance / event study** | `finance_event_study_panel` | ticker × business day, multi-outcome (returns, abnormal) | binary event with weights (market cap) | DiD `twfe`, EventStudy `market_adjusted` |
+| **Population health / RCTs** | `rct_longitudinal_panel`, `survival_oncology_panel`, `mediation_panel` | patient × visit-week (longitudinal), patient × single-row (survival), subject × baseline (mediation) | categorical multi-arm; right-censored; binary + mediator | Survival `kaplan_meier`, `cox_ph`; Mediation `four_way`; DiD `twfe` per arm |
+| **Agriculture / dose-response** | `agronomic_dose_response_panel` | plot × season, area weights | continuous intensity (kg/ha) | DiD `twfe` (continuous treatment column) |
+| **Chemistry / pharmacology** | `chem_assay_panel` | compound × concentration (μM, float period_kind) | optional dose-threshold binary event | (analyst-fit dose-response curves; engine fan-out v0.2+) |
+| **Climate / environmental science** | `climate_anomaly_panel` | station × month-end, anomalies vs. baseline | binary "heat dome" / regime-shift event | DiD `twfe`, `cs`, `sdid` |
+| **Education / value-added** | `education_value_added_panel` | student × quarterly assessment | binary intervention (tutoring, curriculum change) | DiD `twfe`, `cs`; Mediation `four_way` |
+| **Energy / utilities** | `energy_consumption_panel` | household × month, kWh outcome | binary opt-in program (rebate, smart-thermostat) | DiD `twfe`, `cs`, `sdid` |
+| **Marketing / A-B testing** | `marketing_uplift_panel` | user × week, conversion outcome | categorical multi-arm (control / variant_a / variant_b) | per-arm `twfe`, Mediation `four_way` |
+| **Macroeconomics / cross-country** | `macroeconomic_country_panel`, `sdid_block_treatment_panel` | country × year, GDP-growth outcome, population weights | binary policy adoption (fiscal, monetary) | DiD `twfe`, `cs`, `sdid` |
+| **Ecology / conservation** | `ecology_biodiversity_panel` | site × year, species-richness outcome, area weights | binary conservation intervention | DiD `twfe`, `cs`, `sdid` |
+| **Network / social diffusion** | `network_diffusion_panel` | user × week, binary adoption outcome | seed cohort spreading via SI cascade | DiD `twfe`; diffusion engines `ndlib` v0.2+ |
+| **Causal mediation (any domain)** | `mediation_panel` | subject × single-row with A, M, Y, C | binary treatment + mediator (binary or continuous) | Mediation `four_way` (VanderWeele 2014) |
+
+## Domains where the framework partially fits today
+
+These work today via the generic Panel + engine pattern but lack a
+dedicated engine adapter. Pull requests welcome.
+
+| Domain | What's missing | v0.2+ slot |
+|---|---|---|
+| **Manufacturing / SPC** | Control-chart engine (Shewhart, EWMA, CUSUM) | `engines.process_control/` |
+| **Sports analytics** | Player-impact + plus-minus regression adapters | `engines.panel_reg/` covers most cases |
+| **Real estate / hedonic** | Hedonic-pricing helpers, repeat-sales index | `engines.panel_reg/` + custom helpers |
+| **Transportation** | Traffic OD-matrix factor primitives | `engines.spatial/` covers Moran's I; OD-specific helpers TBD |
+| **Genomics / quant genetics** | Mixed-model GWAS scale isn't a fit (HPC + biobank world); see "Out of scope" below | — |
+| **Astronomy / spectroscopy** | Period-axis fits (`period_kind="float"` with wavelength); engine fan-out for spectral decomposition would be new ground | — |
+| **Behavioral neuroscience** | Subject × trial × condition; fits the panel shape if reshaped to `(subject, trial)` | — |
+
+## Frontier-method extension slots
+
+Stubbed in `pyproject.toml` extras + reserved engine namespaces. The
+two highlighted SDID and Mediation slots ship today: they close
+genuine Python-ecosystem gaps where no maintained equivalent exists.
+
+| Extra | Engine namespace | What it adds | Status |
+|---|---|---|---|
+| (no extra) | `engines.sdid` | **Synthetic DiD** (Arkhangelsky, Athey, Hirshberg, Imbens, Wager, *AER* 2021) — homegrown via scipy QP + jackknife inference; no mature Python pkg before this | **shipped (`SyntheticDidEngine`)** |
+| (no extra) | `engines.mediation` | **Four-way mediation decomposition** (VanderWeele, *Epidemiology* 2014) — CDE / INTref / INTmed / PIE for linear-linear models with bootstrap inference; no maintained Python equivalent before this | **shipped (`FourWayMediationEngine`)** |
+| `factor-factory[het-te]` | `engines.het_te` | EconML / causalml — causal forests, X/T/S/R-learners, IV forests | reserved |
+| `factor-factory[dml]` | `engines.dml` | DoubleML — cross-fit double ML over arbitrary nuisance learners | reserved |
+| `factor-factory[climate]` | `engines.climate` | xclim climatological-baseline helpers, Mann-Kendall trend test | reserved |
+| `factor-factory[diffusion]` | `engines.diffusion` | ndlib SI / SIR / threshold-model / Bass-diffusion fits | reserved |
+
+## Adding a new engine family
+
+The framework's design pivot. To add a new engine family
+(`my_family/`), create:
+
+```
+factor_factory/engines/my_family/
+├── __init__.py        # registry + estimate() dispatcher
+├── _base.py           # MyFamilyResult dataclass + MyFamilyEngine Protocol
+├── adapter_a.py       # one engine adapter
+├── adapter_b.py       # another adapter
+└── ...
+```
+
+The Result dataclass commits to a small set of required fields
+(method, point estimate, SE, n) plus optional method-specific
+diagnostics. The Protocol pins the `fit(panel, *, ...) -> Result`
+signature. Adapters wrap external packages or roll their own
+math. Conformance tests parametrize over `registry.available()` to
+validate every adapter against the same fixture set.
+
+See `factor_factory/engines/did/` for the canonical example;
+`engines/survival/` for a non-DiD shape (per-subject rather than
+panel-aggregated); `engines/event_study/` for a single-event
+(rather than DiD) family.
+
+## Extending the data contract
+
+Most domain-specific needs fit within the existing contract:
+
+- **New cross-sectional dimension?** Just pass `dimension="ticker"` /
+  `"patient_id"` / `"plot_id"`. No code changes needed.
+- **Non-time period axis?** Pass `period_kind="integer"` (days from
+  event), `"float"` (concentration / dose), or `"ordinal"` (any
+  orderable label).
+- **Multi-outcome panel?** Pass `outcome_cols=("primary", "secondary")`.
+- **Continuous / multi-arm treatment?** Use `kind="continuous"` with
+  `intensity=` or `kind="categorical"` with `arm=` on `TreatmentEvent`.
+- **Per-record covariates?** Pass `record_view=True` plus
+  `record_view_columns=(...)`.
+- **Provenance / publishing metadata?** Pass `provenance=Provenance(...)`.
+- **Observation weights?** Pass `weights_col="population"` (or
+  `"market_cap"`, `"plot_area_ha"`, etc.).
+
+If your domain doesn't fit any of those — for example, a panel where
+units have *time-varying membership* (a stock that joins/leaves an
+index, a patient who switches arms) — open an issue. The likely
+resolution is adding a new `period_kind` or extending `TreatmentEvent`
+rather than forking the panel concept.
+
+## Out of scope (deliberately)
+
+Listed so the absence is explicit, not accidental.
+
+### GWAS / biobank-scale quantitative genetics
+
+**Decision: do not ship a first-class engine.**
+
+Statistical genetics at biobank scale is a fundamentally different
+ops world from the analyses factor-factory targets:
+
+- **Data scale.** A modern GWAS analyzes ~10⁶–10⁷ SNPs across
+  ~10⁵–10⁶ subjects. The (subject × SNP) "panel" is in the tens of
+  billions of cells; the in-memory `Panel` abstraction is wrong by
+  three to five orders of magnitude. Materializing it would either
+  OOM or require a chunked-iterator design that doesn't match the
+  rest of the framework.
+- **File formats.** Inputs are PLINK BED/BIM/FAM, BGEN, VCF, or
+  more recently sparse pgen — none of which the existing
+  `Panel.from_records` ingestion path is designed to handle. PLINK
+  files alone require a C-extension reader (`pysnptools`,
+  `bed-reader`).
+- **Runtime ops.** Linkage-disequilibrium pruning, principal-component
+  adjustment for population structure, and per-SNP mixed-model
+  regression are typically run on HPC clusters with multi-day
+  walltimes. The dominant production stack is `hail` (Spark/JVM, ~2 GB
+  install, distributed by design) and `BOLT-LMM` (single-binary C++
+  with custom file formats). Wrapping these inside a Python framework
+  doesn't add value over calling them directly.
+- **Inference shape.** The genetics community has converged on
+  per-SNP summary statistics + post-hoc meta-analysis (`METAL`,
+  `LDSC`, `MR-Base`), not per-study Result dataclasses. The
+  factor-factory Result-class pattern doesn't fit.
+
+**What we recommend instead.** For small-N quantitative-trait analysis
+that fits in memory (~hundreds of variants, ~thousands of subjects),
+use `statsmodels.regression.mixed_linear_model.MixedLM` directly. For
+biobank-scale work, use the established stack:
+
+- [`hail`](https://hail.is/) — Broad Institute, Spark-backed, the
+  modern de-facto standard for biobank GWAS.
+- [`pysnptools`](https://github.com/fastlmm/PySnpTools) — Microsoft
+  Research, lightweight PLINK BED reader; pairs well with
+  `MixedLM` for teaching-scale analyses.
+- [`limix`](https://github.com/limix/limix) — single-trait and
+  multi-trait mixed-model GWAS, lightly maintained but a reasonable
+  Python-native option for small-to-medium N.
+- [`scikit-allel`](https://scikit-allel.readthedocs.io/) —
+  population-genetics summary stats (allele frequencies, LD,
+  haplotype diversity).
+- [PLINK 2.0](https://www.cog-genomics.org/plink/2.0/) and
+  [BOLT-LMM](https://alkesgroup.broadinstitute.org/BOLT-LMM/) —
+  industry-standard CLI tools for production runs.
+
+If a future analysis bridges the two worlds (e.g., post-GWAS
+mediation analysis on summary statistics), the right pattern is to
+load summary stats into a flat factor-factory `Panel` of (variant,
+trait) and apply the existing engines — not to push native genetic
+file formats inside the framework.
+
+### Other deliberate exclusions
+
+- **Streaming / online algorithms.** factor-factory assumes finite,
+  materializable panels.
+- **Deep learning.** PyTorch / JAX / TensorFlow stay separate. Engines
+  may *call* into these (e.g., DoubleML with neural nuisance learners
+  via econml) but factor-factory itself is statistical / classical.
+- **Custom IDE / live viewer.** That's jellycell's job.
+- **Bayesian-everything.** We adapt PyMC / bayesloop where it makes
+  sense (changepoints, hierarchical priors) but don't pick a
+  Bayesian-vs-frequentist side per se.
+
+## Coordinating engine PRs
+
+Follow the [RFC template](og_context/05_rfc_template.md) for new
+engine families. One family per RFC, one PR per adapter within the
+family. The conformance tests + cross-domain fixtures should catch
+regressions automatically once your adapter is registered in the
+family's `__init__.py`.
+
+
+# Design contracts
+
+The data shapes factor-factory commits to. These are the contracts
+downstream consumers — `nyc311`, `subway-access`, finance toolkits,
+clinical-trial pipelines, agronomic-yield analyses, chemistry assay
+workflows — build against. They are designed to be **domain-agnostic**:
+the same `Panel` shape hosts NYC-civic data, a hedge-fund event study,
+a multi-arm RCT, a fertilizer dose-response trial, and an in-vitro
+inhibitor IC₅₀ assay.
+
+This doc supersedes the v0.1-skeleton sketch in
+[`og_context/03_specs/panel_contract.md`](og_context/03_specs/panel_contract.md).
+Treat it as the canonical reference for the shapes the framework
+guarantees.
+
+## Why a single Panel?
+
+The Protocol-pluggable engine pattern is the architectural payload of
+factor-factory. Engines should be able to consume **any** consumer's
+Panel without bespoke adaptation — that's how a downstream package
+gets multi-engine DiD / RDD / SCM "for free." The cost is a slightly
+opinionated central contract. The benefit is that an engine added in
+v0.5 works against panels built in v0.1.
+
+## The Panel
+
+```
+MultiIndex(unit_id, period) → wide DataFrame
+       +
+   PanelMetadata (pydantic)
+       +
+   RecordView (optional)  → per-record companion
+```
+
+### Index axes
+
+| Level | Allowed types | Constraint |
+|---|---|---|
+| `unit_id` | Any hashable. Common: `str` (tickers, geographies), `int` (patient IDs, plot IDs), `tuple` (composite keys). | No NaN; must be unique within `(unit_id, period)`. |
+| `period` | One of four `period_kind`s: `timestamp` (calendar), `integer` (day-from-event, age in months), `float` (dose, temperature), `ordinal` (any orderable label). | Must match `metadata.period_kind`; balanced (cartesian product). |
+
+### Outcome columns
+
+`metadata.outcome_cols: tuple[str, ...]` — at least one. The first is
+the *primary* (returned by `panel.outcome_col`). Outcome dtype must
+be numeric (any int or float — count outcomes, survival indicators,
+returns, yields all valid).
+
+### Framework-aware columns (auto-attached)
+
+When `treatment_events` are provided, the panel gains:
+
+**Per-event columns** (always, one set per event):
+- `treated_unit__<event_name>` — int8 0/1
+- `post__<event_name>` — int8 0/1
+- For binary events: `treatment__<event_name>` — int8 0/1
+- For continuous events: `treatment__<event_name>` — float64 (mask × intensity)
+- For categorical events: `arm__<event_name>` — string (`<arm>` or `"control"`)
+
+**Aggregate columns** (when ≥1 binary or continuous event present):
+- `treated_unit` — int8, OR across events
+- `post` — int8, OR across events
+- `treatment` — int8 (all-binary) or float64 (any continuous), summed across events
+
+For the staggered-DiD case, fit your engine against either an aggregate
+column (Bacon-decomposition caveats apply) or a per-event column via
+`panel.per_event_columns(event_name)`.
+
+### Optional weights column
+
+`metadata.weights_col: str | None`. When set, points to a numeric
+column on the panel. Used by population-weighted estimators (Theil
+index, weighted regressions). Common values:
+- Civic: `"population"` (decennial census + ACS yearly)
+- Finance: `"market_cap"` / `"adv_30d_volume"`
+- Ag: `"plot_area_ha"`
+- Population health: `"person_years"` / `"sample_size"`
+
+Access via `panel.weights` (pandas Series indexed like `panel.df`).
+
+### Provenance metadata
+
+`metadata.provenance: Provenance` — a structured pydantic model:
+
+| Field | Purpose |
+|---|---|
+| `data_source` | URL / DOI / dataset id where the data came from |
+| `license` | `"CC-BY-4.0"`, `"ODbL-1.0"`, `"public-domain"`, `"proprietary"`, etc. |
+| `ethics_note` | IRB approval / data-ethics statement (population-health, sensitive data) |
+| `citation` | How to cite this dataset in a paper or report |
+| `creator` | Organization or author that produced the data |
+| `dataset_version` | Vintage tag (e.g., `"2024Q3"`, `"v3.1"`) |
+| `created_at` | When the panel was constructed (UTC) |
+
+Tearsheet renderers surface these in METHODOLOGY.md and AUDIT.md
+automatically. The publishing-best-practices ethos: every analysis
+makes its data lineage legible without forcing the analyst to write
+prose around it.
+
+## TreatmentEvent
+
+The treatment shape factor-factory commits to handle:
+
+```python
+TreatmentEvent(
+    name="...",                    # short identifier; suffixes per-event columns
+    treated_units=("u1", "u2"),    # tuple of hashables
+    treatment_date=date(...),      # for time-based panels
+    period_value=...,              # for non-time panels (mutually exclusive)
+    dimension="...",               # e.g., "ticker", "patient_id", "plot_id"
+    kind="binary"|"continuous"|"categorical",
+    intensity=...,                 # required when kind="continuous"
+    arm="...",                     # required when kind="categorical"
+    metadata={...},                # free-form dict for engine consumers
+)
+```
+
+Validation runs on construction; per-event column attachment runs on
+`Panel.from_records` (or any direct call to `_attach_treatment_columns`).
+
+### Worked examples
+
+**Binary policy rollout** (NYC-civic shape):
+
+```python
+TreatmentEvent(
+    name="rat_pilot_2024",
+    treated_units=("MN-01", "MN-02", "BX-03"),
+    treatment_date=date(2024, 6, 1),
+    dimension="community_district",
+)
+```
+
+**Continuous treatment intensity** (agronomic dose-response):
+
+```python
+TreatmentEvent(
+    name="fertilizer_program",
+    treated_units=tuple(treated_plot_ids),
+    treatment_date=date(2024, 3, 1),
+    dimension="plot_id",
+    kind="continuous",
+    intensity=80.0,                # kg/ha
+)
+```
+
+**Multi-arm RCT** (one event per arm; control is implicit):
+
+```python
+events = (
+    TreatmentEvent(
+        name="low_dose",
+        treated_units=tuple(low_dose_patients),
+        treatment_date=enrolment_date,
+        dimension="patient_id",
+        kind="categorical",
+        arm="low_dose",
+    ),
+    TreatmentEvent(
+        name="high_dose",
+        treated_units=tuple(high_dose_patients),
+        treatment_date=enrolment_date,
+        dimension="patient_id",
+        kind="categorical",
+        arm="high_dose",
+    ),
+)
+```
+
+**Dose-threshold on a non-time panel** (chemistry):
+
+```python
+TreatmentEvent(
+    name="ic50_above_threshold",
+    treated_units=tuple(potent_compound_ids),
+    period_value=1.0,              # μM threshold
+    dimension="compound_id",
+    kind="binary",
+)
+```
+
+**Staggered policy rollout** (multiple events at different dates):
+
+```python
+events = (
+    TreatmentEvent(name="alpha", treated_units=cohort_a, treatment_date=date(2022, 7, 1), dimension="cd"),
+    TreatmentEvent(name="beta",  treated_units=cohort_b, treatment_date=date(2023, 1, 1), dimension="cd"),
+    TreatmentEvent(name="gamma", treated_units=cohort_c, treatment_date=date(2023, 7, 1), dimension="cd"),
+)
+panel = Panel.from_records(records, dimension="cd", treatment_events=events)
+# Per-event columns: treatment__alpha / treated_unit__alpha / post__alpha (etc.)
+# Aggregate columns: treated_unit / post / treatment (sum across events)
+```
+
+## RecordView
+
+A flat per-record DataFrame that lives alongside the aggregated Panel.
+Required columns: `unit_id` and `period`. Beyond that, anything goes.
+
+The lat/lon convention is one important but optional case: when
+`latitude` and `longitude` columns are present,
+`RecordView.distance_to_point(lon, lat)` returns the haversine distance
+in km — useful as the running variable for record-level RDD.
+
+For non-spatial domains, the RecordView carries the analyst's own
+per-record covariates: clinical visit timestamps, asset-level
+metadata, sample-level QC flags, etc. The `record_view_columns` kwarg
+on `Panel.from_records` controls which extras are pulled.
+
+## Cross-domain conformance fixtures
+
+`factor_factory.tests._fixtures.cross_domain` provides synthetic
+fixtures across data shapes:
+
+| Fixture | Domain | Generalization exercised |
+|---|---|---|
+| `finance_event_study_panel()` | Finance | Business-day periods (no monthly bin), multi-outcome (returns + abnormal_returns), market-cap weights |
+| `rct_longitudinal_panel()` | Population health | Multi-arm categorical events (placebo / low_dose / high_dose), integer outcome (adverse_events count) |
+| `agronomic_dose_response_panel()` | Agriculture | Continuous treatment intensity (kg/ha), semi-annual freq, plot-area weights |
+| `chem_assay_panel()` | Chemistry | `period_kind="float"` (dose concentration), no time dimension, no treatment events |
+| `staggered_did_panel()` | Multi-event policy | Three binary events at different dates; per-event columns |
+
+Engine conformance tests should parametrize across these fixtures so
+new adapters validate against every supported data shape.
+
+## Engine Protocol invariants
+
+The engine framework adapts; the data contract above is fixed. Each
+engine family defines its own Protocol + frozen `Result` dataclass —
+see [`og_context/03_specs/engine_protocol.md`](og_context/03_specs/engine_protocol.md).
+
+The contract every engine MUST honor:
+
+1. Accept any `Panel` matching the contract above; raise a clear error
+   if a required column is missing.
+2. Cite the underlying canonical method in the engine class docstring.
+3. Return a frozen `Result` dataclass with at minimum the family's
+   required fields.
+4. Pass the family's conformance test suite against all relevant
+   cross-domain fixtures.
+
+## Versioning + backwards compatibility
+
+The contracts in this doc are **stable surface** for v0.1+. Renames
+(e.g., `geography` → `dimension`) ship with backwards-compat aliases
+that pydantic validators silently translate. The aliases stay through
+v1.x and may be removed in v2.0 with a one-major-version deprecation
+warning cycle.
+
+The Protocol shapes for engine families MAY evolve in v0.x as new
+engines surface field requirements — locked at v1.0.
+
+
+# Jellycell integration
+
+`factor_factory.jellycell.*` is the load-bearing **first-class
+jellycell integration** that makes factor-factory more than just a
+stats-engine framework. It owns the cell-level workarounds, the five
+manuscript renderers, and the `scaffold` command.
+
+## Why it exists
+
+Three loadbearing reasons:
+
+1. **Workaround for jellycell #J1** (`jc.setup` cells get cached,
+   their imports vanish on re-execute). `cells.setup()` returns the
+   imports as a dict the cell unpacks locally — sidesteps the cache
+   scope bug entirely.
+2. **Workaround for jellycell #J2** (`jc.figure(path)` requires
+   `fig=plt.gcf()`). `figure.from_path()` is the path-only entry
+   point that registers the artifact and emits the IPython display.
+3. **Manuscript scaffolding**. Five canonical templates
+   (METHODOLOGY, DIAGNOSTICS_CHECKLIST, FINDINGS, MANUSCRIPT, AUDIT)
+   that every showcase has previously hand-authored. `tearsheets.*`
+   regenerates them from a project's filesystem state.
+
+Plus the `scaffold` command, which spins up a complete project in
+one shot.
+
+## Conventions
+
+Showcase notebooks built against factor-factory follow these rules.
+Each is enforced by the scaffolded `notebooks/01_load.py` stub.
+
+### 1. Always start cells with `setup()`
+
+Never rely on `# %% tags=["jc.setup"]` cells (jellycell #J1 makes them
+unreliable). Inline the imports per cell:
+
+```python
+# %% tags=["jc.load", "name=panel"]
+from factor_factory.jellycell.cells import setup
+ns = setup(also=("matplotlib.pyplot as plt",))
+jc, pd, np, plt, Image = ns["jc"], ns["pd"], ns["np"], ns["plt"], ns["Image"]
+```
+
+`setup()` returns a dict with `jc`, `pd`, `np`, `Image` always
+present, plus any `also=` aliases parsed as `<module> [as <alias>]`
+strings. Verbose, yes — but it's the only pattern that survives the
+upstream cache-scope bug.
+
+### 2. Headline numbers via `jc.save`
+
+```python
+jc.save(payload, "artifacts/<name>.json", caption="...")
+```
+
+Tearsheet renderers pick up `artifacts/*.json` automatically.
+Convention: one JSON per "headline" (the model output, the headline
+counts, etc.). Don't over-fragment.
+
+### 3. Tables via `jc.table`
+
+```python
+jc.table(df, name="balance", caption="Pre-treatment SMDs")
+```
+
+`jc.table` writes parquet by default and requires `pyarrow` —
+factor-factory ships pyarrow in default deps so this works out of
+the box (workaround for jellycell #J4).
+
+### 4. Pre-rendered figures via `from_path`
+
+```python
+# %% tags=["jc.figure", "name=fig1"]
+from factor_factory.jellycell.figure import from_path
+from_path("artifacts/figures/figure-1.png", caption="System-wide ADA coverage")
+```
+
+Cleaner than `IPython.display.Image(...)`. Registers the artifact
+with jellycell when the API supports it; falls back to display-only
+otherwise.
+
+### 5. Generated figures via `jc.figure(..., fig=plt.gcf())`
+
+For figures generated inside a cell, use jellycell's standard API:
+
+```python
+fig, ax = plt.subplots()
+ax.plot(x, y)
+jc.figure("artifacts/figures/scatter.png", fig=fig, caption="...")
+```
+
+### 6. Cell deps via `tags`
+
+```python
+# %% tags=["jc.step", "name=did", "deps=panel"]
+```
+
+The `deps=panel` declaration means jellycell re-runs this cell when
+the upstream `name=panel` cell changes. Lint-friendly via
+`pnpm showcase:lint`.
+
+### 7. Manuscripts via `tearsheets.*`
+
+```python
+from factor_factory.jellycell import tearsheets
+for name in ("methodology", "diagnostics", "findings", "manuscript", "audit"):
+    getattr(tearsheets, name)(project_name, overwrite=True)
+```
+
+Sections above the `<!-- tearsheet:freeze -->` marker get
+regenerated. Sections below it are preserved across runs — edit
+interpretation, references, etc., without losing them. Only
+`MANUSCRIPT.md` typically has substantial below-the-marker content
+(the long-form working-paper writeup); the others stay mostly
+auto-generated.
+
+## The five renderers
+
+Each `factor_factory.jellycell.tearsheets.*` function takes the
+same signature:
+
+```python
+def render(
+    project: str,
+    *,
+    output_path: Path | None = None,
+    overwrite: bool = False,
+    template_overrides: dict | None = None,
+) -> Path: ...
+```
+
+| Renderer | Output | What it pulls from disk |
+|---|---|---|
+| `methodology` | `manuscripts/METHODOLOGY.md` | `data/*.parquet.meta.json` (panel metadata), `did_results.json` |
+| `diagnostics` | `manuscripts/DIAGNOSTICS_CHECKLIST.md` | `artifacts/residual_diagnostics.json`, `artifacts/figures/parallel_trends.png` |
+| `findings` | `manuscripts/FINDINGS.md` | `artifacts/*.json`, `artifacts/did_results.json`, `artifacts/figures/*` |
+| `manuscript` | `manuscripts/MANUSCRIPT.md` | `data/*.parquet.meta.json` |
+| `audit` | `manuscripts/AUDIT.md` | `artifacts/did_results.json` (for engine list) |
+
+The renderers' default project-dir resolution looks for
+`<cwd>/<project>/jellycell.toml`; pass `output_path=` explicitly if
+you want to write somewhere else.
+
+## The `scaffold` command
+
+```bash
+python -m factor_factory scaffold <name> [--into <dir>]
+# or, if installed via pip:
+factor-factory scaffold <name>
+```
+
+Drops:
+
+```
+<name>/
+├── jellycell.toml             # project config, viewer port, lint rules
+├── notebooks/
+│   ├── 01_load.py             # working starter notebook
+│   └── _helpers.py            # thin domain-specific scratch space
+├── data/
+│   └── README.md              # data plan + escape hatches
+├── artifacts/
+│   └── figures/
+├── manuscripts/
+│   ├── METHODOLOGY.md         # initial render — edit freely
+│   ├── DIAGNOSTICS_CHECKLIST.md
+│   ├── FINDINGS.md
+│   ├── MANUSCRIPT.md
+│   └── AUDIT.md
+└── site/                      # jellycell render output (gitignored)
+```
+
+Detects a parent `AGENTS.md` and prints a confirmation when found.
+Project-name validation: lowercase letters / digits / hyphens, must
+start with a letter, ≤ 50 chars.
+
+## Coordinated upstream items
+
+The factor-factory workarounds are intentional design choices — they
+should NOT be ripped out when jellycell ships the upstream fixes
+(`random-walks/jellycell` #10–#15). The reasons, per the spec:
+
+- **`cells.setup()` and `figure.from_path()` are stable surface
+  area** for downstream consumers. Insulating callers from jellycell
+  version churn is the point.
+- **The five tearsheet renderers** outlive any single jellycell
+  release; the manuscript-template scaffolding is a factor-factory
+  capability regardless of jellycell internals.
+- **The scaffold command** is a factor-factory feature; jellycell's
+  own `init` doesn't and shouldn't know about factor-factory specifics
+  (panel construction, DiD engine wiring, `pyarrow` default dep).
+
+When upstream lands, the only change here is that
+`figure.from_path` can call `jc.figure(path)` directly instead of
+the current best-effort `register_figure` shim.
+
+## Tests
+
+`factor_factory/tests/test_jellycell_integration.py` covers:
+
+- `setup()` returns the expected keys; `also=` parsing rejects
+  malformed entries.
+- `from_path()` raises on missing files; works on real PNGs.
+- `scaffold()` creates the expected directory layout, refuses
+  invalid names, refuses to overwrite existing dirs.
+- Each tearsheet renderer produces non-empty output against a
+  fixture project.
+- The freeze marker preserves below-the-marker content across
+  re-renders.
+
+End-to-end smoke test: `python -m factor_factory scaffold demo &&
+cd demo && python notebooks/01_load.py` produces a parquet panel,
+five JSON/PNG artifacts, and five regenerated manuscripts.
+
+
+# DiD — Two-way fixed effects
+
+Two-way fixed-effects (TWFE) DiD is the classic starting point. Under a single treatment event with homogeneous effects and parallel pre-trends, TWFE recovers the ATT unbiasedly.
+
+```python
+from datetime import date
+from factor_factory.tidy import Panel, TreatmentEvent
+from factor_factory.engines.did import estimate
+
+panel = Panel.from_records(
+    records,
+    dimension="community_district",
+    freq="ME",
+    treatment_events=(TreatmentEvent(
+        name="rat_pilot",
+        treated_units=("MN-01", "MN-02"),
+        treatment_date=date(2024, 6, 1),
+        dimension="community_district",
+    ),),
+    outcome_col="complaint_count",
+)
+
+result = estimate(panel, method="twfe", cluster="unit_id")
+print(result.summary_table())
+```
+
+## When to use TWFE
+
+- Single treatment event (one cohort, one timing)
+- Homogeneous treatment effects assumed
+- Parallel pre-trends verifiable
+
+## When NOT to use TWFE
+
+- **Staggered rollout** → use `method="cs"` (Callaway-Sant'Anna) or `method="sa"` (Sun-Abraham, Batch 6). TWFE under staggered adoption has the Goodman-Bacon bias; forbidden comparisons contaminate the ATT.
+- **Heterogeneous treatment effects across cohorts** → same as above.
+- **Many treated units with heterogeneous trends** → `method="sdid"` (Synthetic DiD).
+
+See the [Callaway-Sant'Anna cookbook](did-callaway-santanna.md) for the staggered-rollout pattern.
+
+## Clustered standard errors
+
+Pass `cluster=<column-name>` to cluster at the unit level (default) or any other panel column (e.g. `cluster="state"` for state-level clustering in a county-level panel).
+
+## References
+
+- Goodman-Bacon, A. (2021). Difference-in-differences with variation in treatment timing. *Journal of Econometrics*, 225(2), 254–277.
+
+
+# DiD — Callaway-Sant'Anna
+
+Callaway & Sant'Anna (2021) decompose the ATT into cohort- and time-specific pieces (the ATT(g,t) matrix), side-stepping the TWFE forbidden-comparisons bias under staggered rollout.
+
+```python
+from factor_factory.engines.did import estimate
+
+result = estimate(
+    panel,
+    method="cs",
+    control_group="never_treated",  # or "not_yet_treated"
+    anticipation=0,
+    bootstrap=1000,
+)
+print(result.summary_table())
+```
+
+## When to use CS
+
+- **Staggered treatment timing** — the headline use-case
+- Multiple cohorts treated at different dates
+- Heterogeneity across cohorts plausible
+
+## Control groups
+
+- `"never_treated"` — units never receiving the treatment. Preferred when such units exist.
+- `"not_yet_treated"` — units treated in the future serve as controls for earlier cohorts. Use when never-treated units don't exist.
+
+## Event-time aggregation
+
+```python
+result = estimate(panel, method="cs", event_time_agg="simple")
+# or: "calendar", "dynamic", "group", "overall"
+```
+
+## Caveats (per current adapter)
+
+- The CS adapter silently drops `cluster=` because the upstream `differences` package handles clustering via columns on the dataframe itself. Include your cluster column in the panel and `differences` picks it up.
+- `period_kind ∉ {"timestamp", "integer"}` is rejected — float / ordinal periods aren't supported by the upstream.
+
+## References
+
+- Callaway, B., & Sant'Anna, P. H. C. (2021). Difference-in-differences with multiple time periods. *Journal of Econometrics*, 225(2), 200–230. https://doi.org/10.1016/j.jeconom.2020.12.001
+- Reference implementation: [`differences`](https://github.com/bernardodionisi/differences)
+
+
+# Event study — market-adjusted returns
+
+The market-adjusted baseline uses the cross-sectional control mean as the benchmark return. No market model fitting — hence no extra dependencies.
+
+```python
+from factor_factory.engines.event_study import estimate
+
+result = estimate(
+    panel,
+    method="market_adjusted",
+    event_window=(-3, 5),  # days relative to event
+    estimation_window=(-252, -30),
+)
+print(result.car)
+print(result.t_stat, result.p_value)
+```
+
+## When to use
+
+- Quick screening of event effects
+- No market-model fit available or needed
+- The control mean is a reasonable proxy for expected returns
+
+## When NOT to use
+
+- When proper factor-model residuals are required (earnings-announcement effects, policy event studies in finance). Use `method="fama_french"` *(Batch 6)* instead.
+- Long event windows where mean-reversion matters.
+
+## References
+
+- MacKinlay, A. C. (1997). Event studies in economics and finance. *Journal of Economic Literature*, 35(1), 13–39.
+
+
+# Four-way mediation decomposition
+
+VanderWeele (2014) decomposes a treatment's total effect into four components:
+
+- **CDE** — Controlled Direct Effect (no mediation, no interaction)
+- **INT_ref** — Reference Interaction (interaction at the control mediator level)
+- **INT_med** — Mediated Interaction (interaction only activated via the mediator)
+- **PIE** — Pure Indirect Effect (mediated, non-interactive)
+
+The four sum to the Total Effect. This is a strict superset of the Imai-Keele-Tingley 2-component NDE/NIE decomposition available in `statsmodels.stats.mediation`.
+
+```python
+from factor_factory.engines.mediation import estimate
+
+result = estimate(
+    panel,
+    treatment="treatment",
+    mediator="mediator",
+    outcome="outcome",
+    covariates=("age", "bmi"),
+    bootstrap=1000,
+)
+print(f"CDE     = {result.cde:.3f} ± {result.std_errors['cde']:.3f}")
+print(f"INT_ref = {result.int_ref:.3f} ± {result.std_errors['int_ref']:.3f}")
+print(f"INT_med = {result.int_med:.3f} ± {result.std_errors['int_med']:.3f}")
+print(f"PIE     = {result.pie:.3f} ± {result.std_errors['pie']:.3f}")
+print(f"Total   = {result.cde + result.int_ref + result.int_med + result.pie:.3f}")
+```
+
+## When to use four-way vs two-way
+
+- **Four-way** — whenever you suspect treatment × mediator interaction. The four-way decomposition surfaces it via `INT_ref` and `INT_med`.
+- **Two-way (NDE/NIE)** — when interaction is ruled out a priori or not of interest. `statsmodels.stats.mediation` is fine.
+
+## Families
+
+Currently supported (v0.1):
+
+- Linear outcome + linear mediator
+
+Batch 5 adds:
+
+- Logistic outcome + linear mediator (closed-form via VanderWeele 2014 §3)
+- Logistic outcome + logistic mediator (Monte-Carlo integration over mediator)
+- Linear outcome + logistic mediator
+
+## Sensitivity analysis *(Batch 5)*
+
+Unobserved-confounding sensitivity (the rho-test from R `CMAverse`):
+
+```python
+sensitivity = result.sensitivity(rho=np.linspace(-0.5, 0.5, 21))
+```
+
+Returns a DataFrame showing how each component shifts as a function of the assumed unmeasured-confounding correlation `rho`.
+
+## Validation
+
+The `mediation_panel` fixture in `_fixtures/cross_domain.py` has a known ground truth:
+
+| Component | True | Estimated | SE |
+|---|---|---|---|
+| CDE | 2.00 | 2.004 | 0.087 |
+| PIE | 1.50 | 1.514 | 0.070 |
+| INT_med | 0.45 | 0.397 | 0.085 |
+| INT_ref | 0.15 | 0.137 | 0.030 |
+
+All four recovered within 1 SE.
+
+## References
+
+- VanderWeele, T. J. (2014). A unification of mediation and interaction: A four-way decomposition. *Epidemiology*, 25(5), 749–761. https://doi.org/10.1097/EDE.0000000000000121
+- Reference R implementation: [`CMAverse`](https://bs1125.github.io/CMAverse/)
+
+
+# Regression Discontinuity
+
+```python
+from factor_factory.engines.rdd import estimate
+
+# Sharp RDD: treatment = 1(score >= cutoff)
+result = estimate(
+    panel,
+    methods=("rd_robust",),
+    outcome="earnings",
+    running_variable="test_score",
+    cutoff=60.0,
+    design="sharp",
+    polynomial_order=1,
+    kernel="triangular",
+    bwselect="mserd",
+)[0]
+print(result.summary_table())
+```
+
+## Fuzzy RDD
+
+When treatment receipt is non-deterministic (e.g. scholarship offer → take-up isn't 100%):
+
+```python
+result = estimate(
+    panel,
+    methods=("rd_robust",),
+    outcome="earnings",
+    running_variable="test_score",
+    cutoff=60.0,
+    design="fuzzy",
+    treatment="received_scholarship",  # binary take-up indicator
+)[0]
+print(f"First-stage F: {result.first_stage_f}")
+```
+
+## Bandwidth selection
+
+`bwselect` options (passed through to `rdrobust`):
+
+- `"mserd"` — default; MSE-optimal symmetric bandwidth
+- `"msetwo"` — separate bandwidths on each side of the cutoff
+- `"msesum"` — sum-of-squared-bias-plus-variance optimal
+- `"cerrd"` — coverage-error-rate optimal
+
+## References
+
+- Calonico, S., Cattaneo, M. D., & Titiunik, R. (2014). Robust nonparametric confidence intervals for regression-discontinuity designs. *Econometrica*, 82(6), 2295–2326. https://doi.org/10.3982/ECTA11757
+- Reference implementation: [`rdrobust`](https://rdpackages.github.io/rdrobust/)
+
+
+# Synthetic Control Method
+
+```python
+from factor_factory.engines.scm import estimate
+
+result = estimate(
+    panel,
+    methods=("augmented",),  # or "pysyncon" for classic SCM
+    outcome="gdp",
+)[0]
+print(result.summary_table())
+print(result.donor_weights)
+```
+
+## Classic vs Augmented
+
+- **`pysyncon`** (classic, Abadie et al. 2010) — simplex donor weights, good pre-period fit required.
+- **`augmented`** (Ben-Michael et al. 2021, homegrown) — adds ridge outcome-model correction for poor pre-period fit. Controlled by `ridge_lambda=` kwarg (default 1.0).
+
+## Comparison to SDID
+
+SCM assumes a single treated unit with a specific rollout. For multiple treated units sharing a single date, use `engines.sdid`. For staggered rollout, use `engines.did.callaway_santanna`.
+
+## References
+
+- Abadie, A., Diamond, A., & Hainmueller, J. (2010). Synthetic control methods for comparative case studies. *JASA*, 105(490), 493–505.
+- Ben-Michael, E., Feller, A., & Rothstein, J. (2021). The augmented synthetic control method. *JASA*, 116(536), 1789–1803.
+
+
+# Synthetic Difference-in-Differences (SDID)
+
+Arkhangelsky et al. (2021) combine **unit weights** (synthetic-control style) with **time weights** and a weighted DiD estimator. The SDID estimator is consistent under weaker parallel-trends assumptions than TWFE because the time weights down-weight pre-periods that don't match the post-period trend.
+
+```python
+from factor_factory.engines.sdid import estimate
+
+result = estimate(panel)  # binary block treatment, SDID defaults
+
+print(f"ATT = {result.att:.3f} ± {result.std_error:.3f}")
+print(result.unit_weights.head(10))   # synthetic-control weights
+print(result.time_weights.head(10))   # time-averaging weights
+```
+
+## When to use SDID
+
+- Parallel-trends fragility in vanilla DiD (heterogeneous unit trends)
+- Binary block treatment (all treated units share a common adoption date)
+- ≥ 2 treated units (inference quality improves quickly with treated count)
+
+## When NOT to use SDID
+
+- Staggered adoption (SDID assumes a common treatment date; use CS / SA / BJS instead)
+- Single treated unit — placebo inference degenerates to a rough sigma estimate; the jackknife is undefined. Batch 5 lands proper placebo-test inference for this case.
+- Panels where the pre-period is shorter than the post-period (time weights can't regularize well)
+
+## Inference
+
+```python
+result = estimate(panel, inference="jackknife")  # default for n_treated >= 2
+result = estimate(panel, inference="placebo", n_placebo=200, placebo_seed=42)
+```
+
+**Jackknife** (default): leave-one-treated-unit-out; matches the R
+`synthdid` default. Degenerate for `n_treated == 1`; falls back to a
+first-differences sigma estimate.
+
+**Placebo**: permute treatment assignment across control units,
+recompute the null distribution of ATT. Use when `n_treated == 1` or
+when the analyst wants permutation-based inference.
+
+The current jackknife holds `omega` and `lam` fixed across leave-one-out iterations (matches the R `synthdid` default). Re-solving the QPs per iteration is correct but ~N_tr × slower.
+
+## Prop-99 validation *(Batch 5)*
+
+The AER paper's canonical California-Prop-99 example is reproduced in `tests/test_sdid_prop99.py`.
+
+## References
+
+- Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens, G. W., & Wager, S. (2021). Synthetic Difference-in-Differences. *American Economic Review*, 111(12), 4088–4118. https://doi.org/10.1257/aer.20190159
+- Reference R implementation: [`synthdid`](https://synth-inference.github.io/synthdid/)
+
+
+# Survival — Cox proportional hazards
+
+```python
+from factor_factory.engines.survival import estimate
+
+result = estimate(
+    panel,
+    method="cox_ph",
+    duration_col="days_to_event",
+    event_col="event_observed",
+    covariates=("age", "bmi", "treatment"),
+)
+print(result.hazard_ratios)
+print(result.schoenfeld_p_values)
+```
+
+## Proportional-hazards assumption
+
+Check `result.schoenfeld_p_values` — low p-values indicate PH violations. Options:
+
+1. **Stratify** the violator: `stratify_by="sex"` (Batch 6 adds the full strata kwarg).
+2. **Time-varying coefficients**: fit `CoxTimeVaryingFitter` manually via lifelines.
+3. **Use parametric AFT** instead (Weibull, log-normal) — not yet wrapped; file an issue.
+
+## Stratified Cox PH *(Batch 6)*
+
+```python
+result = estimate(panel, method="cox_ph", stratify_by="sex", covariates=(...))
+```
+
+Strata have their own baseline hazards; the coefficients are shared across strata.
+
+## References
+
+- Cox, D. R. (1972). Regression models and life-tables. *Journal of the Royal Statistical Society, Series B*, 34(2), 187–220.
+- Reference implementation: [`lifelines`](https://lifelines.readthedocs.io/)
+
+
+# Survival — Kaplan-Meier
+
+```python
+from factor_factory.engines.survival import estimate
+
+result = estimate(
+    panel,
+    method="kaplan_meier",
+    duration_col="days_to_event",
+    event_col="event_observed",
+    stratify_by=None,  # pass a column name for stratified KM
+)
+print(result.summary_function.head())
+```
+
+`SurvivalResult.survival_function` is a DataFrame indexed by time with columns per stratum. CI bands come from Greenwood's formula.
+
+## When to use KM
+
+- Non-parametric survival curve estimation
+- Log-rank test for group-difference significance
+- Preliminary EDA before fitting a Cox model
+
+## Log-rank test
+
+```python
+result.logrank_p_value  # None for unstratified runs
+```
+
+## References
+
+- Kaplan, E. L., & Meier, P. (1958). Nonparametric estimation from incomplete observations. *Journal of the American Statistical Association*, 53(282), 457–481.
+- Reference implementation: [`lifelines`](https://lifelines.readthedocs.io/)
+
+
+# Migration guide — v0.x → v1.0
+
+factor-factory v1.0 is the first stable release. Most changes through the
+v0.x → v1.0 journey (batches 0–16 on `feat/v1.0-roadmap`) were **additive**
+and require no downstream code changes. The handful of surface changes
+worth noting are below.
+
+## Pinned floor: jellycell >= 1.3.5
+
+If your showcase pins `jellycell`, bump to `>=1.3.5,<2`. v1.3.5 contains
+multiple fixes factor-factory's jellycell integration relies on:
+
+- `setup`-cell never caching (jellycell #16) — factor_factory.jellycell.cells.setup
+- `jc.figure` path-only form (jellycell #17) — factor_factory.jellycell.figure.from_path
+- `run` / `export` honor `--project` (jellycell #18)
+- `jc.table` ergonomics + pyarrow default (jellycell #19)
+- tearsheet tag filtering (jellycell #20) — per-engine tearsheet scoping
+- kernel-iopub hang diagnostics (jellycell #22)
+
+## Additive API additions (no migration required)
+
+The following are new public APIs. Existing code continues to work.
+
+- `Panel.attach_treatment_columns(events, replace=False)` — promoted
+  from module-private `_attach_treatment_columns`. The underscore alias
+  is kept for one minor release.
+- `Panel.validate(strict=True)` — new kwarg. `strict=False` skips O(n)
+  data-quality checks.
+- `Panel(..., validate=True)` — new kwarg on the constructor.
+- `Panel.summary()` — new instance method returning a dict.
+- `<Family>Result.summary_table()` — added to every `Result` dataclass
+  (DiD / Survival / EventStudy / SDID / Mediation / RDD / SCM / etc.).
+- `PanelBuilder` — streaming alternative to `Panel.from_records` for
+  large record streams. Exposed via `factor_factory.tidy.PanelBuilder`.
+- `tidy.socrata.bulk_fetch_async` — async variant of `bulk_fetch`.
+
+## New engine families
+
+12 new engine families landed between v0.1 and v1.0:
+
+| Family | Adapters | Canonical citation |
+|---|---|---|
+| `engines.rdd` | `rd_robust` | Calonico-Cattaneo-Titiunik 2014 |
+| `engines.scm` | `augmented`, `pysyncon` | Ben-Michael et al. 2021 / Abadie et al. 2010 |
+| `engines.het_te` | `causal_forest` | Wager-Athey 2018 |
+| `engines.dml` | `plr` | Chernozhukov et al. 2018 |
+| `engines.changepoint` | `ruptures` | Truong-Oudre-Vayatis 2020 |
+| `engines.stl` | `sktime_stl` | Cleveland et al. 1990 |
+| `engines.panel_reg` | `pyfixest` | Correia 2016 |
+| `engines.spatial` | `morans_i` | Moran 1950 / Anselin 1995 |
+| `engines.inequality` | `theil_t` | Theil 1967 |
+| `engines.reporting_bias` | `latent_em` | Dempster-Laird-Rubin 1977 |
+| `engines.hawkes` | `tick` | Hawkes 1971 |
+| `engines.climate` | `mann_kendall` | Mann 1945 / Kendall 1948 |
+| `engines.diffusion` | `ndlib_sir` | — |
+
+Each adapter carries its citation DOI + reference-implementation URL in the
+class docstring. Install the extras you need:
+
+```bash
+pip install factor-factory[rdd,scm,het-te,dml,changepoint,stl,panel-reg,spatial,hawkes,climate,diffusion]
+```
+
+## Existing engine families — extensions
+
+- `engines.did.sun_abraham` — Sun-Abraham (2021) IW estimator added.
+- `engines.did.borusyak_jaravel_spiess` — BJS (2024) imputation estimator
+  added (homegrown).
+- `engines.survival.cox_ph` gained a `strata=` kwarg for stratified Cox PH.
+- `engines.event_study.fama_french` — FF3/FF5/Carhart-4 market-model
+  event study added.
+- `engines.sdid.estimate(..., inference="placebo")` — placebo-test
+  inference added (default remains `"jackknife"`).
+- `MediationResult.sensitivity(rho_range, n_points)` — unobserved-
+  confounding sensitivity analysis added.
+
+## Contract snapshots
+
+`docs/reference/contracts.md` pins `SNAPSHOT_VERSION = "1.0.0"` for the
+Panel / Engine Protocol / Tearsheet JSON contracts. Any change that alters
+these shapes must bump the snapshot version and log a `### Contracts` note
+in `CHANGELOG.md`.
+
+## Release automation
+
+- PyPI publication via OIDC trusted-publisher — no stored tokens.
+- Tags matching `v*` trigger `.github/workflows/release.yml`.
+- `uv.lock` committed for reproducible installs.
+- CI matrix expanded to ubuntu + macos + windows × py3.12 + py3.13.
+
+## Deprecations
+
+None in the v0.x → v1.0 journey. Breaking changes were deferred.
+
+## Questions?
+
+File an issue at https://github.com/random-walks/factor-factory/issues
+with `migration:` in the title.
+
+
+# Architecture
+
+The 6-layer pipeline. Higher layers import lower layers; never the reverse.
+
+```
+raw records
+  ↓ tidying              factor_factory.tidy        (Panel + TreatmentEvent + Provenance + RecordView)
+tidied panel
+  ↓ factor construction  factor_factory.factors     (volume, recurrence, HHI, resolution, reliability — Phase 2)
+factor panel
+  ↓ diagnostics          factor_factory.diagnostics (SMD, parallel trends, residuals, balance)
+diagnostic-annotated panel
+  ↓ modeling             factor_factory.engines     (did / survival / event_study / sdid / mediation + 13 more v0.2+)
+modeling results
+  ↓ reporting            factor_factory.jellycell   (5 tearsheet renderers + scaffold CLI)
+```
+
+## Dependency order
+
+The layers map onto a strict import order. `factor_factory.tidy` imports only stdlib + pandas + numpy + pyarrow + pydantic. `factor_factory.diagnostics` may import `tidy` but not `engines`. `factor_factory.engines.<family>` may import `tidy` + `diagnostics` + the family's optional upstream package. `factor_factory.jellycell` may import any of them.
+
+The engine registry pattern means `engines.__init__` **does not** transitively import every family's upstream package. Each family's `__init__.py` has a try/except around the adapter imports so a missing extra dep fails gracefully (registry has fewer entries) rather than breaking unrelated code.
+
+## Engine-family shape (the Protocol contract)
+
+Every family under `factor_factory.engines.<family>/` follows the same shape:
+
+```
+engines/<family>/
+├── __init__.py           # exports estimate, <Family>Result, <Family>Results, registry
+├── _base.py              # <Family>Result dataclass + <Family>Engine Protocol + registry
+├── <adapter_1>.py        # first adapter (e.g. twfe.py)
+├── <adapter_2>.py        # second adapter (optional)
+└── ...
+```
+
+The frozen `<Family>Result` dataclass is the Tearsheet JSON contract. The `<Family>Engine` Protocol is the Engine Protocol contract. Both are locked per [§0.2](../og_context/06_post_v0.1_roadmap.md#02-contract-invariants-lock-these-before-we-scale) of the roadmap.
+
+## Piggyback-first
+
+See [`reference/piggyback-map.md`](piggyback-map.md). Factor-factory wraps mature upstream packages; we port from scratch only when no maintained Python equivalent exists. Two current anti-piggybacks: `engines.sdid` (Arkhangelsky 2021) and `engines.mediation` (VanderWeele 2014).
+
+## The jellycell boundary
+
+Factor-factory produces JSON-serializable `Result.to_dict()` outputs. The jellycell integration layer (`factor_factory.jellycell`) reads these JSONs and renders 5 canonical manuscripts (METHODOLOGY, DIAGNOSTICS_CHECKLIST, FINDINGS, MANUSCRIPT, AUDIT). The JSON shape is the **Tearsheet JSON contract** — adding keys is additive, renaming or removing is breaking.
+
+## What's deliberately NOT in the architecture
+
+- **Streaming engine fits** — all estimators assume the Panel fits in memory. `Panel.from_records` streaming (Batch 13) is the data-loading side; engine fits stay in-memory.
+- **Distributed execution** — factor-factory is a single-machine tool. Scale out via the domain layer (pre-aggregate upstream, feed a smaller Panel in).
+- **Model serving / inference endpoints** — out of scope; use a downstream FastAPI/MLflow project.
+- **GUI** — the jellycell viewer is the UI. No standalone factor-factory GUI.
+
+
+# Contract snapshots
+
+This file is the **gate** for the three factor-factory contract invariants. Any change that alters the shape documented here requires a `SNAPSHOT_VERSION` bump + a CHANGELOG `### Contracts` note.
+
+Current snapshot: **`SNAPSHOT_VERSION = "1.0.0"`** (frozen at first stable release — Batch 3).
+
+## Contract 1 — Panel
+
+Full prose: [`design-contracts.md`](../design-contracts.md).
+
+Invariant summary:
+
+- **Columns, in order**: `unit_id`, `period`, `<outcome_col>` (or `<outcome_col_1>`, `<outcome_col_2>`, ...), `weight` (optional), per-event treatment columns, `<user-supplied passthrough columns>`.
+- **`period_kind`** ∈ `{"timestamp", "integer", "float"}`.
+- **Treatment columns**, per `TreatmentEvent` (let `e` be the event name):
+  - `treated_<e>` — bool: this row is in a treated unit
+  - `post_<e>` — bool: this row is at or after the treatment date
+  - `treatment_<e>` — bool (binary events) OR float (continuous) OR category (multi-arm)
+  - `arm_<e>` (only for categorical events): the treatment-arm string
+- **Provenance** (`Panel.provenance`): `source`, `fetched_at`, `notes`, `annotations: dict[str, Any]`. The `annotations` dict is the free-form slot for things like `ground_truth_att`.
+- **Validation**: `Panel.validate()` runs on construction. Cost is O(n) in the record count. Batch 4 adds `validate(strict=False)` for a fast-path that skips O(n) checks.
+
+## Contract 2 — Engine Protocol
+
+Full prose: [`../og_context/03_specs/engine_protocol.md`](../og_context/03_specs/engine_protocol.md).
+
+Every `<Family>` shipping today:
+
+### DiD
+
+```python
+@dataclass(frozen=True)
+class DidResult:
+    method: str              # "twfe" | "cs"
+    att: float
+    se: float
+    ci_95: tuple[float, float]
+    p_value: float
+    n: int
+    cohort_atts: dict[int, float] | None = None
+    cohort_ses: dict[int, float] | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None  # excluded from to_dict()
+
+class DidEngine(Protocol):
+    name: str
+    def fit(
+        self,
+        panel: Panel,
+        *,
+        outcome: str,
+        treatment: str = "treatment",
+        cluster: str | None = None,
+        **kwargs: Any,
+    ) -> DidResult: ...
+```
+
+### Survival
+
+```python
+@dataclass(frozen=True)
+class SurvivalResult:
+    method: str              # "kaplan_meier" | "cox_ph"
+    median_survival: float | None
+    n_subjects: int
+    n_events: int
+    coefficients: dict[str, float] | None = None
+    hazard_ratios: dict[str, float] | None = None
+    p_values: dict[str, float] | None = None
+    confidence_intervals: dict[str, tuple[float, float]] | None = None
+    survival_curve: pd.DataFrame | None = None
+    proportional_hazards_test: dict[str, float] | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
+```
+
+### Event Study
+
+```python
+@dataclass(frozen=True)
+class EventStudyResult:
+    method: str              # "market_adjusted" | "fama_french"
+    n_events: int
+    average_abnormal_return: float
+    car_event_window: float
+    car_se: float
+    car_t_stat: float
+    car_p_value: float
+    abnormal_return_curve: pd.DataFrame | None = None
+    per_unit_car: dict[str, float] | None = None
+    estimation_window: tuple[int, int] | None = None
+    event_window: tuple[int, int] | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
+```
+
+### SDID
+
+```python
+@dataclass(frozen=True)
+class SdidResult:
+    method: str              # "sdid"
+    att: float
+    se: float
+    p_value: float
+    n: int
+    unit_weights: dict[Any, float] | None = None
+    time_weights: dict[Any, float] | None = None
+    n_treated: int | None = None
+    n_control: int | None = None
+    n_pre: int | None = None
+    n_post: int | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
+```
+
+### Mediation
+
+```python
+@dataclass(frozen=True)
+class MediationResult:
+    method: str              # "four_way"
+    n_subjects: int
+    treatment: str
+    mediator: str
+    outcome: str
+    total_effect: float
+    cde: float
+    int_ref: float
+    int_med: float
+    pie: float
+    decomposition_residual: float
+    total_effect_se: float | None = None
+    cde_se: float | None = None
+    int_ref_se: float | None = None
+    int_med_se: float | None = None
+    pie_se: float | None = None
+    confidence_intervals: dict[str, tuple[float, float]] | None = None
+    proportion_eliminated: float | None = None
+    proportion_mediated: float | None = None
+    diagnostics: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
+```
+
+## Contract 3 — Tearsheet JSON
+
+Each engine family emits a JSON file consumed by jellycell templates:
+
+- `did_results.json` — one object per adapter fit, list
+- `survival_results.json` — one object per adapter fit, list
+- `event_study_results.json` — one object per adapter fit, list
+- `sdid_results.json` — one object per adapter fit, list
+- `mediation_results.json` — one object per adapter fit, list
+
+The schema for each is `Result.to_dict()` output. Additive keys are safe; renaming or removing is breaking.
+
+## Ceremony on touch
+
+1. Change `<Family>Result` or `<Family>Engine` Protocol.
+2. Update the block above.
+3. Bump `SNAPSHOT_VERSION` (patch for additive, minor for new family, **major for breaking**).
+4. CHANGELOG `### Contracts` note referencing this snapshot.
+5. For breaking changes: RFC under `docs/og_context/rfcs/<slug>.md`.
+
+The `contract-auditor` Claude agent checks this automatically on `/contract-check`.
+
+
+# Piggyback map
+
+Factor-factory is **adapter-first**. Before writing engine math from scratch, consult this table. We wrap mature Python (or, failing that, R) packages; we only port from scratch when no maintained equivalent exists.
+
+## Active wrappers
+
+| Method / family | Piggyback package | Adapter location | Canonical paper |
+|---|---|---|---|
+| TWFE DiD | `linearmodels` | `engines.did.twfe` | — |
+| Callaway-Sant'Anna DiD | `differences` | `engines.did.callaway_santanna` | Callaway & Sant'Anna 2021 (JoE) |
+| Sun-Abraham DiD | `differences` (fallback: port) | `engines.did.sun_abraham` *(Batch 6)* | Sun & Abraham 2021 (JoE) |
+| Borusyak-Jaravel-Spiess DiD | `differences` (fallback: port) | `engines.did.borusyak_jaravel_spiess` *(Batch 6)* | Borusyak, Jaravel & Spiess 2024 |
+| Kaplan-Meier survival | `lifelines` | `engines.survival.kaplan_meier` | — |
+| Cox PH | `lifelines` | `engines.survival.cox_ph` | — |
+| Stratified Cox PH | `lifelines` (`strata=`) | `engines.survival.cox_ph` *(Batch 6)* | — |
+| Market-adjusted event study | — (homegrown, dep-free) | `engines.event_study.market_adjusted` | MacKinlay 1997 |
+| Fama-French event study | `pandas-datareader` + `statsmodels` | `engines.event_study.fama_french` *(Batch 6)* | Fama-French 1993/2015; Patell 1976; BMP 1991 |
+| RDD | `rdrobust` | `engines.rdd.rd_robust` *(Batch 7)* | Calonico, Cattaneo, Titiunik 2014 |
+| Synthetic Control | `pysyncon` | `engines.scm.pysyncon` *(Batch 8)* | Abadie, Diamond, Hainmueller 2010 |
+| Augmented SCM | `pysyncon` (fallback: port) | `engines.scm.augmented` *(Batch 8)* | Ben-Michael, Feller, Rothstein 2021 |
+| Matrix-completion SCM | `pysyncon` (fallback: port) | `engines.scm.matrix_completion` *(Batch 15)* | Athey et al. 2021 |
+| Causal Forest | `econml` | `engines.het_te.causal_forest` *(Batch 9)* | Wager & Athey 2018; Athey et al. 2019 |
+| X/R-learner | `econml` | `engines.het_te.x_learner`, `r_learner` *(Batch 9)* | Künzel et al. 2019; Nie & Wager 2021 |
+| DoubleML (PLR + IRM) | `DoubleML` | `engines.dml.plr`, `engines.dml.irm` *(Batch 9)* | Chernozhukov et al. 2018 |
+| BCF | `bcf` (R — port) | `engines.het_te.bcf` *(Batch 15)* | Hahn, Murray & Carvalho 2020 |
+| Offline changepoint | `ruptures` | `engines.changepoint.ruptures_adapter` *(Batch 10)* | Truong, Oudre & Vayatis 2020 |
+| Online Bayesian changepoint | `bayesloop` | `engines.changepoint.bayesloop_adapter` *(Batch 10)* | Adams & MacKay 2007 |
+| STL decomposition + forecast | `sktime` | `engines.stl.sktime_stl` *(Batch 10)* | Cleveland et al. 1990 |
+| Prophet forecasting | `prophet` | `engines.stl.prophet_adapter` *(Batch 10)* | Taylor & Letham 2018 |
+| Panel FE regression (HDFE) | `pyfixest` | `engines.panel_reg.pyfixest_adapter` *(Batch 10)* | Correia 2016 (reghdfe) |
+| Inequality decomposition | `inequality` | `engines.inequality.theil` *(Batch 11)* | Theil 1967; Atkinson 1970 |
+| Spatial autocorrelation | `esda` | `engines.spatial.morans_i` *(Batch 11)* | Moran 1950; Anselin 1995 |
+| Spatial regression | `spreg` | `engines.spatial.spreg_ols` *(Batch 11)* | Anselin 1988 |
+| Spatial weights | `libpysal` | `engines.spatial.weights` *(Batch 11)* | — |
+| Hawkes processes | `tick` | `engines.hawkes.tick_adapter` *(Batch 12)* | Hawkes 1971; Bacry et al. 2015 |
+| Climate indices | `xclim` | `engines.climate.xclim_adapter` *(Batch 12)* | — |
+| Mann-Kendall trend | `pymannkendall` | `engines.climate.mann_kendall` *(Batch 12)* | Mann 1945; Kendall 1948; Hamed-Rao 1998 |
+| Network diffusion | `ndlib` | `engines.diffusion.ndlib_adapter` *(Batch 12)* | — |
+
+## Anti-piggybacks (homegrown ports)
+
+When no maintained Python equivalent exists, we port the method inline. Each anti-piggyback carries: (a) the reason the piggyback fails, (b) the canonical paper, (c) the reference R implementation URL.
+
+| Method | Adapter | Why we port | Canonical paper |
+|---|---|---|---|
+| Synthetic DiD | `engines.sdid.synthetic_did` | No maintained Python equivalent. R [`synthdid`](https://synth-inference.github.io/synthdid/) is canonical; PyPI `pysdid` was lightly maintained. | Arkhangelsky et al. 2021 (AER, https://doi.org/10.1257/aer.20190159) |
+| Four-way mediation decomposition | `engines.mediation.four_way` | No maintained Python equivalent. R [`CMAverse`](https://bs1125.github.io/CMAverse/) is canonical; PyPI `mediation` is stale; `statsmodels.stats.mediation` only does 2-component (NDE/NIE). | VanderWeele 2014 (Epidemiology, https://doi.org/10.1097/EDE.0000000000000121) |
+| Market-adjusted event study | `engines.event_study.market_adjusted` | Trivial math (cross-sectional control mean as benchmark). No dep is justified; keeping the family dep-free for the default install. | MacKinlay 1997 |
+| Latent-EM reporting-bias | `engines.reporting_bias.latent_em` *(Batch 11)* | Two-class EM for under-reporting rates is a civic-data staple with no off-the-shelf Python implementation. ~150 LOC. | — |
+| SDID placebo inference | `engines.sdid.synthetic_did` *(Batch 5)* | Single-treated-unit placebo-style inference not cleanly exposed by upstream; jackknife fallback is our own. | Arkhangelsky et al. 2021 §3.4 |
+
+## Non-piggybacks (deliberate exclusions)
+
+| Domain | Why excluded | Where to go instead |
+|---|---|---|
+| GWAS / biobank-scale genetics | Scale (100M+ variants), file formats (VCF, PLINK, BGEN), ops patterns (mixed-model LMMs, reml variance components) all mismatch the Panel shape. | [hail](https://hail.is/), [pysnptools](https://fastlmm.github.io/PySnpTools/), [scikit-allel](https://scikit-allel.readthedocs.io/), [PLINK 2.0](https://www.cog-genomics.org/plink/2.0/), [BOLT-LMM](https://alkesgroup.broadinstitute.org/BOLT-LMM/). |
+| Deep-learning causal estimators | Research frontier, stability insufficient for production wrapping. Revisit post-v2.0. | [causalML](https://causalml.readthedocs.io/) for heads-up on what's mature. |
+| Streaming engine fits (online learning) | All our estimators assume the Panel fits in memory. Out of scope until someone needs it. | [river](https://riverml.xyz/) for online learning primitives. |
+
+## Updating this map
+
+Any new adapter PR must add a row. The `engine-reviewer` agent checks this. If you think a row is wrong (upstream package has been unmaintained for ≥1 year, license changed, API broke), file an issue — don't silently swap to a different package without discussion.
+
+
+# Contributing
+
+See [`CONTRIBUTING.md`](https://github.com/random-walks/factor-factory/blob/main/CONTRIBUTING.md) at the repo root. Highlights:
+
+- Three contract invariants (Panel / Engine Protocol / Tearsheet JSON) — breaking any = major bump.
+- Piggyback-first: consult [`../reference/piggyback-map.md`](../reference/piggyback-map.md) before writing math.
+- Every new engine family follows the [add-an-engine flow](adding-an-engine.md).
+- Pre-merge: `make lint && make test && make docs-build` green + `/contract-check` clean.
+
+
+# Adding an engine family
+
+A step-by-step walkthrough. The `/add-engine <family>` Claude slash-command automates most of this.
+
+## 1. Check the piggyback map
+
+Open [`../reference/piggyback-map.md`](../reference/piggyback-map.md). If your method is listed, you'll wrap the named package. If it's not listed and no mature Python or R port exists, you'll port from scratch (anti-piggyback) — see the SDID and Mediation families for the pattern.
+
+## 2. Decide on the Result shape
+
+The frozen `<Family>Result` dataclass is part of the Engine Protocol contract. It should contain:
+
+- **Estimate + uncertainty** (always): `estimate: float`, `std_error: float`, or equivalents
+- **Method identifier**: `method: str`
+- **Inference parameters** (when relevant): `inference: str`, cluster-variable name, bootstrap seed, etc.
+- **Diagnostic outputs** (family-dependent): unit weights, hazard ratios, changepoints, etc.
+- **`extra: dict[str, Any]`** for family-specific passthrough data
+
+Every field should be JSON-serializable in `to_dict()`.
+
+## 3. Copy a template family
+
+Either:
+
+- **Wrapper pattern** — copy `factor_factory/engines/survival/` and rename. Replace `lifelines` with your upstream package.
+- **Homegrown pattern** — copy `factor_factory/engines/sdid/` and rename. Your math lives inline.
+
+## 4. Scaffold the artifacts
+
+Every new family needs:
+
+1. `factor_factory/engines/<family>/_base.py` — Result + Protocol + registry
+2. `factor_factory/engines/<family>/__init__.py` — lazy adapter imports, exports
+3. `factor_factory/engines/<family>/<adapter>.py` — implementation
+4. `factor_factory/tests/_fixtures/cross_domain.py` — add a truth-tracking fixture
+5. `factor_factory/tests/test_engines/test_<family>_<adapter>.py` — conformance test
+6. `pyproject.toml` — `[<family>]` extras + fold into `all`
+7. `docs/reference/piggyback-map.md` — add a row
+8. `docs/supported-domains.md` — add a row
+9. `docs/cookbook/<family>-<adapter>.md` — worked example
+10. `CHANGELOG.md` — `[Unreleased]` → `### Added` entry with DOI
+
+## 5. Citations in docstrings
+
+The adapter class docstring MUST contain:
+
+```python
+class MyEngine:
+    """Short one-line summary.
+
+    Wraps :mod:`<upstream_package>` — see the reference implementation at
+    https://<upstream-package-url>.
+
+    References
+    ----------
+    Author, A., & Author, B. (Year). Paper title. Journal, Vol(Issue),
+    Pages. https://doi.org/10.xxxx/...
+    """
+```
+
+The `engine-reviewer` Claude agent will flag a missing citation.
+
+## 6. Test the truth
+
+Your conformance test must recover the ground truth within a documented tolerance. See [`../fixture-parity`](/.claude/skills/fixture-parity.md) (skill loaded into Claude sessions automatically).
+
+```python
+def test_my_engine_recovers_truth():
+    panel = my_family_fixture_panel()
+    result = estimate(panel, method="my_adapter")
+    truth = panel.provenance.annotations["ground_truth_att"]
+    assert abs(result.estimate - truth) < 2 * result.std_error
+```
+
+## 7. Ship
+
+`/contract-check` → `make lint test docs-build` → open PR with the template. The `engine-reviewer` agent reviews against the 13-point checklist.
+
+
+# Dev setup
+
+## First-time
+
+```bash
+git clone https://github.com/random-walks/factor-factory.git
+cd factor-factory
+make dev     # uv sync --all-extras --dev
+```
+
+Prefer `pip`? `pip install -e ".[all,dev]"` works too, but the `uv.lock` is the source of truth for reproducible builds (committed from Batch 2).
+
+## Editor integration
+
+- **VS Code / Cursor**: Python extension picks up `.venv/`. Enable ruff + mypy LSPs.
+- **Vim / Neovim**: `ruff-lsp` + `pylsp-mypy` or `mypy` via `nvim-lspconfig`.
+- **PyCharm**: Mark `factor_factory/` as a Sources Root; set interpreter to `.venv/bin/python`.
+
+## Run one thing
+
+```bash
+uv run pytest factor_factory/tests/test_engines/test_sdid.py -v
+```
+
+## Build the docs locally
+
+```bash
+make docs           # live-reload at http://localhost:5190
+make docs-build     # CI-style strict build into docs/_build/html
+```
+
+## Common knobs
+
+| Task | Command |
+|---|---|
+| Lint only (no fix) | `make lint` |
+| Auto-fix + format | `make format` |
+| Mypy strict | `uv run mypy factor_factory` |
+| Just the engines tests | `make test-engines` |
+| Just cross-domain conformance | `make test-cross-domain` |
+| Property-based (hypothesis) | `make test-property` *(Batch 14+)* |
+| Full preflight | `make release-check` |
+
+## Updating the lock
+
+After adding a dep to `pyproject.toml`:
+
+```bash
+uv lock             # regenerate uv.lock
+git diff uv.lock    # review the churn
+```
+
+Large `uv.lock` diffs during engine-family additions are normal and expected. Review the top-level additions; ignore transitive noise.
+
+
+# Releasing
+
+## Versioning policy (minimum-bump)
+
+Factor-factory follows jellycell's pattern: patch bumps are cheap, hoard nothing, release frequently.
+
+| Change | Bump |
+|---|---|
+| Bug fix, docs, refactor, non-breaking dep bump, new fixture | patch |
+| New adapter, new engine family, new public API (additive) | minor |
+| Break any contract (Panel / Engine Protocol / Tearsheet JSON) | **major** (post-1.0) / minor (pre-1.0) |
+
+See `.claude/skills/release-bump.md` for the full decision tree.
+
+## Cutting a release
+
+One-time setup (complete before v1.0.0):
+
+1. On PyPI, configure the project as a **trusted publisher** pointing at `random-walks/factor-factory` repo + `release.yml` workflow + `pypi` environment. No stored tokens.
+2. Create the `pypi` GitHub Environment on the repo with protected-branches rule `main` only.
+
+Routine release:
+
+1. Confirm `main` is green (CI + docs + release-check).
+2. Run `/bump patch|minor|major` — it bumps `factor_factory/_version.py` and rolls `CHANGELOG.md`.
+3. Commit: `git commit -am "release: v<new-version>"`.
+4. Tag: `git tag v<new-version>`.
+5. Push: `git push && git push --tags`.
+6. `release.yml` fires on the tag:
+   - builds sdist + wheel via `uv build`
+   - publishes to PyPI via OIDC trusted publisher
+   - creates a GitHub Release with CHANGELOG-extracted notes + the built artifacts
+
+## Pre-release checklist
+
+```bash
+make lint
+make test
+make docs-build
+make release-check
+```
+
+`make release-check` prints the version + recent commits + confirms no `[Unreleased]` block remains above the new version heading.
+
+## Hotfix flow
+
+For urgent bug fixes on a released version:
+
+1. Branch off the last tag: `git checkout -b hotfix/v<X.Y.Z+1> v<X.Y.Z>`.
+2. Apply the fix + test.
+3. `/bump patch`.
+4. Commit + tag + push. `release.yml` fires.
+5. Merge the hotfix back into `main` (usually a trivial fast-forward).
+
+## Yanking a broken release
+
+PyPI's "yank" is a metadata flag: yanked releases are still installable by exact version pin but skipped by dependency resolvers. Yank via the PyPI web UI. Add a CHANGELOG note explaining why.
+
+## First release (v1.0.0)
+
+See [`../og_context/06_post_v0.1_roadmap.md`](../og_context/06_post_v0.1_roadmap.md#batch-3) — cut at the end of Batch 3 after:
+
+- Sphinx + RTD live
+- `uv.lock` committed
+- Cross-platform CI green (ubuntu + macos + windows, py3.12 + py3.13)
+- Contract snapshots frozen at `SNAPSHOT_VERSION = "1.0.0"`
+- First downstream adopter (nyc311 or subway-access) migrated end-to-end
+
+
+# Testing
+
+## Test layout
+
+```
+factor_factory/tests/
+├── _fixtures/
+│   └── cross_domain.py     # 15 synthetic Panels covering every shipping domain
+├── test_engines/
+│   ├── test_did_conformance.py
+│   ├── test_callaway_santanna.py
+│   ├── test_survival.py
+│   ├── test_event_study.py
+│   ├── test_sdid.py
+│   ├── test_mediation.py
+│   └── ...                 # one file per adapter
+├── test_cross_domain.py    # universal Panel-contract + fixture parametrization
+├── test_panel_contract.py
+├── test_treatment_events.py
+├── test_geography.py
+├── test_diagnostics.py
+├── test_jellycell_integration.py
+└── properties/             # hypothesis property-based (Batch 14+)
+```
+
+## Running
+
+```bash
+make test                 # full suite
+make test-engines
+make test-cross-domain
+uv run pytest factor_factory/tests/test_engines/test_sdid.py::test_sdid_recovers_known_att -v
+```
+
+Current runtime: ~3 s locally, ~30 s in CI. Keep this budget — stay under 2 min total wall-clock in CI including lint + mypy.
+
+## Optional-dependency gating
+
+Adapters behind optional extras use `pytest.importorskip` at the top of the test module:
+
+```python
+import pytest
+linearmodels = pytest.importorskip("linearmodels")
+```
+
+CI installs the specific extras its job needs. The default test job installs `[did,survival,event-study,dev]`; family-specific jobs install their own extras.
+
+## Truth-tracking fixtures
+
+Every conformance test asserts recovery of a known ground truth:
+
+```python
+def test_twfe_recovers_known_att():
+    panel = staggered_did_panel()                         # fixture
+    result = estimate(panel, method="twfe")
+    truth = panel.provenance.annotations["ground_truth_att"]
+    assert abs(result.estimate - truth) < 2 * result.std_error
+```
+
+Ground truths live in `panel.provenance.annotations` — read them from there, don't hardcode in the test. The fixture is the single source of truth.
+
+## Property-based tests (Batch 14+)
+
+```bash
+make test-property
+```
+
+Strategies live in `factor_factory/tests/properties/strategies.py`. Panel shapes, TreatmentEvent configs, and record-stream distributions all have strategies.
+
+## Snapshot tests for tearsheets (Batch 14+)
+
+Uses `pytest-regressions`. Rendering a demo showcase's 5 tearsheets produces JSON + HTML outputs; we snapshot those. Any drift fails the test.
+
+```bash
+uv run pytest factor_factory/tests/test_jellycell_integration.py --regen-snapshots
+```
+
+`--regen-snapshots` intentionally updates baselines when the template change is wanted.
+
+## Benchmarks (Batch 14+)
+
+`pytest-benchmark` over `Panel.from_records` on a 100k-record fixture + engine fits on a 10k-record fixture. CI flags > 2× regressions.
+
+```bash
+uv run pytest factor_factory/tests/benchmarks/ --benchmark-only
+```
+

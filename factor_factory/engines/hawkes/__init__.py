@@ -99,15 +99,12 @@ class TickHawkesEngine:
 
         df = panel.df.reset_index()
         if timestamp_col not in df.columns:
-            raise ValueError(
-                f"Hawkes requires a {timestamp_col!r} column listing event times."
-            )
+            raise ValueError(f"Hawkes requires a {timestamp_col!r} column listing event times.")
 
         # Group by unit — each unit = one dimension of the multivariate process.
         units = sorted(df["unit_id"].unique())
         event_times_by_unit = [
-            np.sort(df[df["unit_id"] == u][timestamp_col].to_numpy(dtype=float))
-            for u in units
+            np.sort(df[df["unit_id"] == u][timestamp_col].to_numpy(dtype=float)) for u in units
         ]
         end_time = float(max(t[-1] for t in event_times_by_unit if len(t) > 0))
 
@@ -129,7 +126,8 @@ class TickHawkesEngine:
             method=self.name,
             baseline_intensities=baseline,
             excitation_matrix=adjacency.reshape(len(units), len(units))
-            if adjacency.ndim >= 2 else adjacency,
+            if adjacency.ndim >= 2
+            else adjacency,
             branching_ratio=branching,
             log_likelihood=float(learner.score()) if hasattr(learner, "score") else None,
             n_events=int(sum(len(t) for t in event_times_by_unit)),

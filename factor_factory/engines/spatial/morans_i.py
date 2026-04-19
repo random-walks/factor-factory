@@ -42,8 +42,11 @@ class MoransIEngine:
 
         df = panel.df.reset_index()
         # For a multi-period panel, collapse to unit-level means.
-        agg = df.groupby("unit_id").agg({outcome: "mean", coordinates[0]: "first",
-                                          coordinates[1]: "first"}).reset_index()
+        agg = (
+            df.groupby("unit_id")
+            .agg({outcome: "mean", coordinates[0]: "first", coordinates[1]: "first"})
+            .reset_index()
+        )
 
         coords = list(zip(agg[coordinates[0]], agg[coordinates[1]], strict=True))
         w = KNN.from_array(coords, k=k_neighbors)

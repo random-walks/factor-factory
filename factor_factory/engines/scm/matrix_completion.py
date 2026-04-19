@@ -80,7 +80,7 @@ class MatrixCompletionEngine:
             prev_norm = new_norm
 
         # ATT = observed - imputed, averaged over treated-post cells.
-        post_treated_mask = (~mask)  # cells we imputed
+        post_treated_mask = ~mask  # cells we imputed
         gap = Y - Y_hat
         att = float(np.mean(gap[post_treated_mask])) if post_treated_mask.any() else 0.0
 
@@ -89,12 +89,16 @@ class MatrixCompletionEngine:
         for i, p in enumerate(periods):
             if p < treatment_period:
                 pre_mask_treated[i, treated_col] = True
-        pre_rmspe = float(
-            np.sqrt(np.mean(gap[pre_mask_treated] ** 2))
-        ) if pre_mask_treated.any() else float("nan")
-        post_rmspe = float(
-            np.sqrt(np.mean(gap[post_treated_mask] ** 2))
-        ) if post_treated_mask.any() else float("nan")
+        pre_rmspe = (
+            float(np.sqrt(np.mean(gap[pre_mask_treated] ** 2)))
+            if pre_mask_treated.any()
+            else float("nan")
+        )
+        post_rmspe = (
+            float(np.sqrt(np.mean(gap[post_treated_mask] ** 2)))
+            if post_treated_mask.any()
+            else float("nan")
+        )
 
         pre_periods = [p for p in periods if p < treatment_period]
         post_periods = [p for p in periods if p >= treatment_period]

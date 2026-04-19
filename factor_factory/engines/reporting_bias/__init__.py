@@ -128,7 +128,9 @@ class LatentEmEngine:
             log_pi_r = np.log(pi) + k * np.log(p + 1e-12) + (n - k) * np.log(1 - p + 1e-12)
             log_pi_nr = np.log(1 - pi) + k * np.log(q + 1e-12) + (n - k) * np.log(1 - q + 1e-12)
             max_log = np.maximum(log_pi_r, log_pi_nr)
-            log_lik = float(np.sum(max_log + np.log(np.exp(log_pi_r - max_log) + np.exp(log_pi_nr - max_log))))
+            log_lik = float(
+                np.sum(max_log + np.log(np.exp(log_pi_r - max_log) + np.exp(log_pi_nr - max_log)))
+            )
             gamma = np.exp(log_pi_r - max_log) / (
                 np.exp(log_pi_r - max_log) + np.exp(log_pi_nr - max_log)
             )

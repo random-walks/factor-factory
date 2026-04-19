@@ -90,8 +90,7 @@ class NdlibEngine:
             import ndlib.models.ModelConfig as mc
         except ImportError as exc:  # pragma: no cover
             raise ImportError(
-                "NdlibEngine requires `ndlib`. Install via "
-                "`pip install factor-factory[diffusion]`."
+                "NdlibEngine requires `ndlib`. Install via `pip install factor-factory[diffusion]`."
             ) from exc
         if graph is None:
             raise ValueError("NdlibEngine.simulate requires graph=<networkx.Graph>.")
@@ -110,9 +109,7 @@ class NdlibEngine:
 
         n_nodes = graph.number_of_nodes()
         # SIR trends: list of dicts with 'trends' key.
-        infected_frac = [
-            it["node_count"][1] / n_nodes for it in iterations if "node_count" in it
-        ]
+        infected_frac = [it["node_count"][1] / n_nodes for it in iterations if "node_count" in it]
         peak_idx = int(max(range(len(infected_frac)), key=lambda i: infected_frac[i]))
         peak_frac = float(infected_frac[peak_idx]) if infected_frac else 0.0
 

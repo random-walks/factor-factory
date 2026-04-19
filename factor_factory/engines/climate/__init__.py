@@ -108,6 +108,7 @@ class MannKendallEngine:
 
         # Two-tailed p-value via normal approximation.
         from math import erf, sqrt
+
         p_value = float(2 * (1 - 0.5 * (1 + erf(abs(z) / sqrt(2)))))
 
         # Sen's slope (robust trend estimator).

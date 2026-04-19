@@ -36,8 +36,7 @@ class SktimeStlEngine:
             from sktime.transformations.series.detrend import Deseasonalizer
         except ImportError as exc:  # pragma: no cover
             raise ImportError(
-                "SktimeStlEngine requires `sktime`. Install via "
-                "`pip install factor-factory[stl]`."
+                "SktimeStlEngine requires `sktime`. Install via `pip install factor-factory[stl]`."
             ) from exc
 
         df = panel.df.reset_index()

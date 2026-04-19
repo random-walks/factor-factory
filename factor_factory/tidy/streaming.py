@@ -98,8 +98,7 @@ class PanelBuilder:
             raise ValueError("PanelBuilder received no records.")
 
         rows = [
-            {"unit_id": u, "period": p, self._outcome_col: c}
-            for (u, p), c in self._counts.items()
+            {"unit_id": u, "period": p, self._outcome_col: c} for (u, p), c in self._counts.items()
         ]
         df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
 

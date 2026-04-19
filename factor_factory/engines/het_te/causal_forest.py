@@ -50,9 +50,7 @@ class CausalForestEngine:
             ) from exc
 
         if not covariates:
-            raise ValueError(
-                "CausalForestEngine requires at least one covariate (CATE features)."
-            )
+            raise ValueError("CausalForestEngine requires at least one covariate (CATE features).")
 
         df = panel.df.reset_index()
         Y = df[outcome].to_numpy(dtype=float)
@@ -85,7 +83,9 @@ class CausalForestEngine:
         feature_importances: dict[str, float] = {}
         try:
             importances = est.feature_importances()
-            feature_importances = {c: float(v) for c, v in zip(covariates, importances, strict=True)}
+            feature_importances = {
+                c: float(v) for c, v in zip(covariates, importances, strict=True)
+            }
         except Exception:
             pass
 

@@ -31,7 +31,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-_TEMPLATE = '''\
+_TEMPLATE = """\
 ---
 title: "{title}"
 author: "{author}"
@@ -61,7 +61,7 @@ format:
 ```{{{{=json}}}}
 {raw_json}
 ```
-'''
+"""
 
 
 def render_report(
@@ -96,8 +96,9 @@ def render_report(
     out.parent.mkdir(parents=True, exist_ok=True)
 
     if panel_summary:
-        panel_block = "\n".join(f"- **{k}**: {v}" for k, v in panel_summary.items()
-                                 if k != "provenance")
+        panel_block = "\n".join(
+            f"- **{k}**: {v}" for k, v in panel_summary.items() if k != "provenance"
+        )
         prov = panel_summary.get("provenance", {}) or {}
     else:
         panel_block = "_Panel summary not provided._"

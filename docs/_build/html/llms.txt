@@ -1,0 +1,29 @@
+# factor-factory
+
+> A domain-agnostic factor-model + analysis-pipeline framework with first-class jellycell integration, a Protocol-based pluggable engine pattern, and first-class implementations of two methods the Python ecosystem was missing entirely:
+
+## Docs
+
+- [factor-factory](/_sources/index.md.txt)
+- [Getting started with factor-factory](/_sources/getting-started.md.txt)
+- [Supported domains + extension patterns](/_sources/supported-domains.md.txt)
+- [Design contracts](/_sources/design-contracts.md.txt)
+- [Jellycell integration](/_sources/jellycell-integration.md.txt)
+- [DiD — Two-way fixed effects](/_sources/cookbook/did-twfe.md.txt)
+- [DiD — Callaway-Sant’Anna](/_sources/cookbook/did-callaway-santanna.md.txt)
+- [Event study — market-adjusted returns](/_sources/cookbook/event-study-market-adjusted.md.txt)
+- [Four-way mediation decomposition](/_sources/cookbook/mediation-four-way.md.txt)
+- [Regression Discontinuity](/_sources/cookbook/rdd.md.txt)
+- [Synthetic Control Method](/_sources/cookbook/scm.md.txt)
+- [Synthetic Difference-in-Differences (SDID)](/_sources/cookbook/sdid.md.txt)
+- [Survival — Cox proportional hazards](/_sources/cookbook/survival-cox.md.txt)
+- [Survival — Kaplan-Meier](/_sources/cookbook/survival-km.md.txt)
+- [Migration guide — v0.x → v1.0](/_sources/migration/v0-to-v1.md.txt)
+- [Architecture](/_sources/reference/architecture.md.txt)
+- [Contract snapshots](/_sources/reference/contracts.md.txt)
+- [Piggyback map](/_sources/reference/piggyback-map.md.txt)
+- [Contributing](/_sources/development/contributing.md.txt)
+- [Adding an engine family](/_sources/development/adding-an-engine.md.txt)
+- [Dev setup](/_sources/development/dev-setup.md.txt)
+- [Releasing](/_sources/development/releasing.md.txt)
+- [Testing](/_sources/development/testing.md.txt)

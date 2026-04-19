@@ -79,12 +79,15 @@ def test_panel_summary_is_shuffle_invariant(records: list[dict]) -> None:
 
 
 @given(
-    unit_ids=st.lists(st.from_regex(r"[a-z]{2}\d{2}", fullmatch=True), min_size=1, max_size=3,
-                      unique=True),
+    unit_ids=st.lists(
+        st.from_regex(r"[a-z]{2}\d{2}", fullmatch=True), min_size=1, max_size=3, unique=True
+    ),
     n_days=st.integers(min_value=1, max_value=5),
 )
 @settings(max_examples=20, deadline=None)
-def test_parquet_round_trip_preserves_panel(unit_ids: list[str], n_days: int, tmp_path_factory) -> None:  # type: ignore[no-untyped-def]
+def test_parquet_round_trip_preserves_panel(
+    unit_ids: list[str], n_days: int, tmp_path_factory
+) -> None:  # type: ignore[no-untyped-def]
     """Parquet write → read reproduces Panel exactly."""
     records = [
         {"unit": u, "created_date": date(2024, 1, 1) + timedelta(days=i)}

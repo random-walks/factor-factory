@@ -92,11 +92,7 @@ class TheilEngine:
             shares = {g: float(np.sum(arr)) / float(np.sum(x)) for g, arr in groups.items()}
             means = {g: float(np.mean(arr)) if len(arr) else 0.0 for g, arr in groups.items()}
             between = float(
-                sum(
-                    shares[g] * np.log(means[g] / mu)
-                    for g, _ in groups.items()
-                    if means[g] > 0
-                )
+                sum(shares[g] * np.log(means[g] / mu) for g, _ in groups.items() if means[g] > 0)
             )
             within_components = {}
             for g, arr in groups.items():
