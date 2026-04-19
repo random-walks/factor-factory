@@ -46,6 +46,15 @@ cookbook/survival-cox
 cookbook/event-study-market-adjusted
 cookbook/sdid
 cookbook/mediation-four-way
+cookbook/rdd
+cookbook/scm
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Migration
+
+migration/v0-to-v1
 ```
 
 ```{toctree}

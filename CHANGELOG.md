@@ -10,11 +10,16 @@ Protocol / Tearsheet JSON) are documented in
 [`docs/reference/contracts.md`](docs/reference/contracts.md); breaking any
 of them requires a major bump post-1.0.
 
-## [Unreleased]
+## [Unreleased] — v1.0 roadmap sweep (batches 0–16)
+
+The `feat/v1.0-roadmap` branch merges 16 batches of additive work. No
+contract breaks; every change is backwards-compatible with v0.1.0.
+Tag this as `v1.0.0` at merge time.
 
 ### Added
 
-- 16-batch post-v0.1 roadmap in `docs/og_context/06_post_v0.1_roadmap.md`.
+**Claude Code infrastructure (batch 0)**
+
 - `.claude/` — agents (`engine-reviewer`, `contract-auditor`), commands
   (`/bump`, `/engine-status`, `/contract-check`, `/add-engine`,
   `/release-check`), skills (`engine-protocol`, `piggyback-first`,
@@ -23,19 +28,120 @@ of them requires a major bump post-1.0.
 - `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `Makefile`,
   `scripts/preview_tearsheet.sh`, `scripts/extract_release_notes.py`.
 - `CLAUDE.md` promoted from stub to dense one-pager.
-- **Sphinx + Read the Docs site** — `docs/conf.py` (furo + myst-parser +
-  autodoc2 + sphinx-design + sphinx-copybutton + sphinx-llms-txt),
-  `.readthedocs.yaml`, `docs/index.md` landing page, `docs/reference/`
-  (architecture.md, contracts.md with SNAPSHOT_VERSION="1.0.0",
-  piggyback-map.md), `docs/development/` (5 pages), `docs/cookbook/`
-  (7 per-adapter stubs), `docs/references.bib` (17 canonical citations).
-- **PyPI release infrastructure** — `.github/workflows/release.yml`
-  (OIDC trusted publisher, `build` → `publish` → `github-release`),
-  `scripts/extract_release_notes.py`, `CITATION.cff`.
-- `uv.lock` — 232 packages, first lockfile committed. CI switches to
-  `uv.lock`-aware cached installs.
-- `docs` extras group in pyproject.toml with pinned Sphinx stack.
-- New CI job `docs` running `sphinx-build -W --keep-going` + HTML artifact.
+- `docs/og_context/06_post_v0.1_roadmap.md` — the 16-batch plan.
+
+**Sphinx + Read the Docs (batch 1)**
+
+- `docs/conf.py` (furo + myst-parser + autodoc2 + sphinx-design +
+  sphinx-copybutton + sphinx-llms-txt), `.readthedocs.yaml`,
+  `docs/index.md`, `docs/reference/architecture.md`, contracts snapshot,
+  piggyback-map, 5 development pages, 8 cookbook pages (7 stubs + RDD +
+  SCM), `docs/references.bib` with 17 canonical citations.
+- CI `docs` job runs `sphinx-build -W --keep-going` + HTML artifact.
+- `docs` extras group in pyproject.toml.
+
+**Release automation + uv.lock (batch 2)**
+
+- `.github/workflows/release.yml` — OIDC trusted publisher, build →
+  publish → github-release chain.
+- `scripts/extract_release_notes.py`, `CITATION.cff`, `uv.lock` (232 packages).
+
+**Cross-platform CI (batch 3)**
+
+- `.github/workflows/ci.yml` test matrix expanded to
+  `{ubuntu, macos, windows}` × `{py3.12, py3.13}`.
+
+**Framework polish (batch 4)**
+
+- Public `Panel.attach_treatment_columns(events, replace=False)`.
+- `Panel.validate(strict=True)` kwarg — `strict=False` skips O(n) checks.
+- `Panel.__init__(..., validate=True)` kwarg.
+- `Panel.summary()` — dict with n_units, n_periods, n_records, freq,
+  period_kind, dimension, outcome_cols, n_treatment_events,
+  treated_unit_share, weights_col, has_record_view, provenance.
+- `<Family>Result.summary_table()` — added on DidResult, SurvivalResult,
+  EventStudyResult, SdidResult, MediationResult for engine-family parity.
+- `from_records` raises crisp error when all `record_view_columns` are
+  missing from records.
+
+**SDID + Mediation completeness (batch 5)**
+
+- `engines.sdid.estimate(inference="placebo", n_placebo=200)` option —
+  placebo-test inference alternative to jackknife.
+- `MediationResult.sensitivity(rho_range, n_points)` — unobserved-
+  confounding sensitivity analysis (CMAverse rho-test port).
+- `MediationResult.outcome_family` / `mediator_family` fields
+  (default `"linear"`; `"logistic"` reserved for future MC-integration
+  extension).
+
+**DiD + survival + event-study extensions (batch 6)**
+
+- `engines.did.sun_abraham` — Sun-Abraham (2021) IW estimator via
+  `differences.ATTgt` event-study aggregation.
+- `engines.did.borusyak_jaravel_spiess` — BJS (2024) imputation
+  estimator (homegrown, no upstream required).
+- `engines.survival.cox_ph(..., strata=)` — stratified Cox PH.
+- `engines.event_study.fama_french` — FF3/FF5/Carhart-4 market-model
+  event study with cached factor-series loader + live
+  pandas-datareader fallback.
+
+**New engine families (batches 7–12)**
+
+- `engines.rdd` — Regression Discontinuity via rdrobust
+  (Calonico-Cattaneo-Titiunik 2014). Sharp + fuzzy designs.
+- `engines.scm` — Synthetic Control: `augmented` (Ben-Michael et al. 2021)
+  homegrown + `pysyncon` classic (Abadie et al. 2010).
+- `engines.het_te` — Heterogeneous TEs: `causal_forest` (econml,
+  Wager-Athey 2018) + `bcf` (simplified Hahn-Murray-Carvalho 2020 port).
+- `engines.dml` — DoubleML: `plr` (Chernozhukov et al. 2018 partially-
+  linear-regression).
+- `engines.changepoint` — Changepoint detection: `ruptures`
+  (Truong-Oudre-Vayatis 2020).
+- `engines.stl` — Seasonal decomposition + forecasting: `sktime_stl`
+  (Cleveland et al. 1990).
+- `engines.panel_reg` — HDFE panel regression: `pyfixest`
+  (Correia 2016 / reghdfe Python port).
+- `engines.spatial` — Spatial autocorrelation: `morans_i`
+  (Moran 1950 / Anselin 1995 via esda + libpysal).
+- `engines.inequality` — Decomposition: `theil_t` homegrown with
+  between/within decomposition (Theil 1967).
+- `engines.reporting_bias` — Under-reporting estimation: `latent_em`
+  homegrown two-class EM (Dempster-Laird-Rubin 1977 framework).
+- `engines.hawkes` — Self-exciting point processes: `tick` via
+  HawkesExpKern (Hawkes 1971, Bacry et al. 2013).
+- `engines.climate` — Trend detection: `mann_kendall` homegrown with
+  Sen's slope estimator (Mann 1945 / Kendall 1948).
+- `engines.diffusion` — Network diffusion: `ndlib_sir` cascade
+  simulations (requires networkx.Graph passthrough).
+
+**Framework deep-cuts (batch 13)**
+
+- `factor_factory.tidy.PanelBuilder` — streaming panel construction
+  for large record streams. O(n_cells) memory, not O(n_records).
+- `tidy.socrata.bulk_fetch_async` — async variant of `bulk_fetch`
+  that uses `afetch` coroutine if the adapter provides it, else
+  falls back to sync via `asyncio.to_thread`.
+
+**Testing infrastructure (batch 14)**
+
+- Hypothesis property-based tests under `factor_factory/tests/properties/`
+  covering Panel validation, PanelBuilder parity, summary shuffle-
+  invariance, parquet round-trip.
+- pytest-benchmark harness under `factor_factory/tests/benchmarks/`.
+- pytest markers: `property`, `benchmark`, `snapshot`.
+- `docs/migration/v0-to-v1.md` — concrete migration guide for
+  downstream adopters.
+- `dev` extras gain hypothesis, pytest-benchmark, pytest-regressions.
+
+**Research-frontier + alternative reporting (batch 15)**
+
+- `engines.het_te.bcf` — Bayesian Causal Forest (simplified linear-
+  Gaussian port, Hahn-Murray-Carvalho 2020).
+- `engines.scm.matrix_completion` — Athey-Bayati-Doudchenko-Imbens-
+  Khosravi 2021 soft-impute SVD imputation.
+- `factor_factory.reporting.quarto` — `render_report()` generates
+  `.qmd` files from Result.to_dict() outputs for users who prefer
+  Quarto rendering over jellycell.
 
 ### Changed
 
