@@ -22,6 +22,15 @@ try:
 except ImportError:  # pragma: no cover - exercised in environments lacking `linearmodels`
     pass
 
+# CallawaySantannaEngine pulls in `differences` (which itself pulls statsmodels).
+# Lazy-register so default install stays small.
+try:
+    from .callaway_santanna import CallawaySantannaEngine
+
+    _engines["cs"] = CallawaySantannaEngine()
+except ImportError:  # pragma: no cover
+    pass
+
 registry: EngineRegistry[DidEngine] = EngineRegistry(_engines)
 
 

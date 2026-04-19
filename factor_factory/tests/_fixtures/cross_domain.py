@@ -19,6 +19,8 @@ parametrize over them to ensure the framework handles every shape.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -253,16 +255,19 @@ def chem_assay_panel() -> Panel:
 def staggered_did_panel() -> Panel:
     """Three policy rollouts at different dates — exercises per-event columns.
 
-    Shape: 90 units × 36 months. Three policies (alpha, beta, gamma)
-    each treat a disjoint third of the units at different dates.
+    Shape: 120 units × 36 months. Three policies (alpha, beta, gamma)
+    each treat a disjoint quarter of the units at different dates;
+    the remaining quarter are never-treated controls (required by
+    Callaway-Sant'Anna with ``control_group="never_treated"``).
     """
     rng = np.random.default_rng(_SEED + 4)
-    units = [f"U{i:03d}" for i in range(90)]
+    units = [f"U{i:03d}" for i in range(120)]
     months = pd.date_range("2022-01-31", periods=36, freq="ME")
 
     pol_alpha_units = tuple(units[0:30])
     pol_beta_units = tuple(units[30:60])
     pol_gamma_units = tuple(units[60:90])
+    # units[90:120] are never-treated controls
     pol_alpha_date = months[6].date()
     pol_beta_date = months[12].date()
     pol_gamma_date = months[18].date()
@@ -316,10 +321,460 @@ def staggered_did_panel() -> Panel:
     return Panel(df.sort_index(), metadata)
 
 
+def survival_oncology_panel() -> Panel:
+    """Single-arm oncology cohort with right-censored survival.
+
+    Shape: 200 patients × 1 row each, with ``duration`` (months from
+    enrolment to death/last-followup) and ``event`` (1 if death
+    observed, 0 if right-censored). Two covariates: ``age`` and
+    ``ecog_score`` (0-2 performance status).
+
+    True median survival ≈ 18 months; older + higher-ECOG patients
+    have higher hazard.
+    """
+    rng = np.random.default_rng(_SEED + 5)
+    n = 200
+    patients = [f"PT{i:04d}" for i in range(n)]
+    age = rng.normal(65, 10, n).clip(40, 90)
+    ecog = rng.choice([0, 1, 2], n, p=[0.5, 0.35, 0.15])
+    # Hazard: baseline + age effect + ECOG effect
+    log_hazard = -3.5 + 0.02 * (age - 60) + 0.5 * ecog
+    rate = np.exp(log_hazard)
+    true_survival_time = rng.exponential(1.0 / rate, n)
+    # Right-censor at 36 months
+    censored_at = 36.0
+    duration = np.minimum(true_survival_time, censored_at)
+    event = (true_survival_time <= censored_at).astype(int)
+
+    rows = []
+    enrol_date = pd.Timestamp("2022-01-31")
+    for i, p in enumerate(patients):
+        rows.append(
+            {
+                "unit_id": p,
+                "period": enrol_date,  # single observation per patient
+                "duration": float(duration[i]),
+                "event": int(event[i]),
+                "age": float(age[i]),
+                "ecog_score": int(ecog[i]),
+            }
+        )
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    metadata = PanelMetadata(
+        outcome_cols=("duration",),
+        period_kind="timestamp",
+        freq="ME",  # nominal — single period per unit, freq irrelevant
+        dimension="patient_id",
+        treatment_events=(),
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic",
+            license="MIT",
+            ethics_note="Synthetic data; no human subjects.",
+            citation="factor-factory cross-domain fixture",
+        ),
+    )
+    return Panel(df.sort_index(), metadata)
+
+
+def climate_anomaly_panel() -> Panel:
+    """Station × month temperature anomaly relative to a 1991-2020 baseline.
+
+    Shape: 20 weather stations × 60 months. Treatment event = a
+    'heat dome' year with elevated anomalies for half the stations.
+    Outcome is temperature anomaly (°C).
+    """
+    rng = np.random.default_rng(_SEED + 6)
+    stations = [f"STN{i:03d}" for i in range(20)]
+    months = pd.date_range("2020-01-31", periods=60, freq="ME")
+    treated = tuple(stations[:10])
+    heat_dome_start = months[36].date()  # year 4 onward
+
+    rows = []
+    for s in stations:
+        baseline_offset = float(rng.normal(0.0, 0.3))
+        is_treated = s in treated
+        for i, m in enumerate(months):
+            seasonal = 0.5 * np.sin(2 * np.pi * i / 12)
+            anomaly = baseline_offset + seasonal + 0.005 * i + rng.normal(0, 0.4)
+            if is_treated and m.date() >= heat_dome_start:
+                anomaly += 1.2
+            rows.append({"unit_id": s, "period": m, "temp_anomaly_c": float(anomaly)})
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    events = (
+        TreatmentEvent(
+            name="heat_dome",
+            treated_units=treated,
+            treatment_date=heat_dome_start,
+            dimension="station",
+        ),
+    )
+    metadata = PanelMetadata(
+        outcome_cols=("temp_anomaly_c",),
+        period_kind="timestamp",
+        freq="ME",
+        dimension="station",
+        treatment_events=events,
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic",
+            license="MIT",
+            citation="factor-factory cross-domain fixture",
+            dataset_version="2024-baseline-1991-2020",
+        ),
+    )
+    df = _attach_treatment_columns(df, events, period_kind="timestamp")
+    return Panel(df.sort_index(), metadata)
+
+
+def education_value_added_panel() -> Panel:
+    """Student × test-period scores with a tutoring intervention rolled out mid-year.
+
+    Shape: 80 students × 8 quarterly assessments. Treated students
+    receive supplemental tutoring after period 3.
+    """
+    rng = np.random.default_rng(_SEED + 7)
+    students = [f"S{i:04d}" for i in range(80)]
+    periods = pd.date_range("2023-03-31", periods=8, freq="QE")
+    treated = tuple(students[:40])
+    intervention = periods[3].date()
+
+    rows = []
+    for s in students:
+        ability = float(rng.normal(0.0, 0.5))
+        is_treated = s in treated
+        for i, p in enumerate(periods):
+            score = 70 + 5 * ability + 0.5 * i + rng.normal(0, 4)
+            if is_treated and p.date() >= intervention:
+                score += 6.0
+            rows.append({"unit_id": s, "period": p, "test_score": float(score)})
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    events = (
+        TreatmentEvent(
+            name="tutoring",
+            treated_units=treated,
+            treatment_date=intervention,
+            dimension="student_id",
+        ),
+    )
+    metadata = PanelMetadata(
+        outcome_cols=("test_score",),
+        period_kind="timestamp",
+        freq="QE",
+        dimension="student_id",
+        treatment_events=events,
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic",
+            license="MIT",
+            ethics_note="Synthetic data; no human subjects.",
+            citation="factor-factory cross-domain fixture",
+        ),
+    )
+    df = _attach_treatment_columns(df, events, period_kind="timestamp")
+    return Panel(df.sort_index(), metadata)
+
+
+def energy_consumption_panel() -> Panel:
+    """Household × month electricity consumption with a smart-meter rebate program.
+
+    Shape: 100 households × 24 months. Half the households opt into a
+    rebate program at month 12; outcome is kWh / month.
+    """
+    rng = np.random.default_rng(_SEED + 8)
+    households = [f"H{i:04d}" for i in range(100)]
+    months = pd.date_range("2023-01-31", periods=24, freq="ME")
+    treated = tuple(households[:50])
+    rebate_start = months[12].date()
+
+    rows = []
+    for h in households:
+        baseline = float(rng.uniform(400, 1200))
+        is_treated = h in treated
+        for i, m in enumerate(months):
+            seasonal = 100 * np.cos(2 * np.pi * i / 12)  # winter peak
+            consumption = baseline + seasonal + rng.normal(0, 50)
+            if is_treated and m.date() >= rebate_start:
+                consumption *= 0.92  # 8% reduction
+            rows.append({"unit_id": h, "period": m, "kwh": float(consumption), "rate_zone": "A"})
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    events = (
+        TreatmentEvent(
+            name="rebate_program",
+            treated_units=treated,
+            treatment_date=rebate_start,
+            dimension="household_id",
+        ),
+    )
+    metadata = PanelMetadata(
+        outcome_cols=("kwh",),
+        period_kind="timestamp",
+        freq="ME",
+        dimension="household_id",
+        treatment_events=events,
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic",
+            license="MIT",
+            citation="factor-factory cross-domain fixture",
+        ),
+    )
+    df = _attach_treatment_columns(df, events, period_kind="timestamp")
+    return Panel(df.sort_index(), metadata)
+
+
+def marketing_uplift_panel() -> Panel:
+    """User × week conversion rates from an A/B test of two campaign creatives.
+
+    Shape: 500 users × 8 weeks. Multi-arm: control / variant_a /
+    variant_b assigned at week 0. Outcome is conversion count per
+    week (integer).
+    """
+    rng = np.random.default_rng(_SEED + 9)
+    users = [f"U{i:05d}" for i in range(500)]
+    weeks = pd.date_range("2024-01-07", periods=8, freq="W")
+    arm_assignment = {u: ("control", "variant_a", "variant_b")[i % 3] for i, u in enumerate(users)}
+    arm_lift = {"control": 0.0, "variant_a": 0.20, "variant_b": 0.45}
+    enrolment_date = weeks[0].date()
+
+    rows = []
+    for u in users:
+        propensity = float(rng.uniform(0.05, 0.20))
+        arm = arm_assignment[u]
+        for w in weeks:
+            lifted_p = min(propensity * (1 + arm_lift[arm]), 0.95)
+            conv = int(rng.binomial(1, lifted_p))
+            rows.append({"unit_id": u, "period": w, "conversions": conv})
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    events = (
+        TreatmentEvent(
+            name="variant_a",
+            treated_units=tuple(u for u, a in arm_assignment.items() if a == "variant_a"),
+            treatment_date=enrolment_date,
+            dimension="user_id",
+            kind="categorical",
+            arm="variant_a",
+        ),
+        TreatmentEvent(
+            name="variant_b",
+            treated_units=tuple(u for u, a in arm_assignment.items() if a == "variant_b"),
+            treatment_date=enrolment_date,
+            dimension="user_id",
+            kind="categorical",
+            arm="variant_b",
+        ),
+    )
+    metadata = PanelMetadata(
+        outcome_cols=("conversions",),
+        period_kind="timestamp",
+        freq="W",
+        dimension="user_id",
+        treatment_events=events,
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic A/B test",
+            license="MIT",
+            ethics_note="No PII; user IDs are synthetic.",
+            citation="factor-factory cross-domain fixture",
+        ),
+    )
+    df = _attach_treatment_columns(df, events, period_kind="timestamp")
+    return Panel(df.sort_index(), metadata)
+
+
+def macroeconomic_country_panel() -> Panel:
+    """Country × year GDP-growth panel with a policy-shock event.
+
+    Shape: 25 countries × 20 years. Subset of countries adopt a
+    fiscal-tightening policy at year 10; outcome is real GDP growth.
+    """
+    rng = np.random.default_rng(_SEED + 10)
+    countries = [f"C{i:02d}" for i in range(25)]
+    years = pd.date_range("2005-12-31", periods=20, freq="YE")
+    treated = tuple(countries[:10])
+    policy_year = years[10].date()
+
+    rows = []
+    for c in countries:
+        country_fe = float(rng.normal(2.0, 0.7))
+        is_treated = c in treated
+        for i, y in enumerate(years):
+            shock = rng.normal(0, 1.5)
+            growth = country_fe + 0.03 * i + shock
+            if is_treated and y.date() >= policy_year:
+                growth -= 0.8  # contractionary policy
+            rows.append(
+                {
+                    "unit_id": c,
+                    "period": y,
+                    "gdp_growth": float(growth),
+                    "population_mil": float(rng.uniform(5, 80)),
+                }
+            )
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    events = (
+        TreatmentEvent(
+            name="fiscal_tightening",
+            treated_units=treated,
+            treatment_date=policy_year,
+            dimension="country",
+        ),
+    )
+    metadata = PanelMetadata(
+        outcome_cols=("gdp_growth",),
+        period_kind="timestamp",
+        freq="YE",
+        dimension="country",
+        treatment_events=events,
+        weights_col="population_mil",
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic",
+            license="MIT",
+            citation="factor-factory cross-domain fixture",
+        ),
+    )
+    df = _attach_treatment_columns(df, events, period_kind="timestamp")
+    return Panel(df.sort_index(), metadata)
+
+
+def ecology_biodiversity_panel() -> Panel:
+    """Site × year species-richness with conservation intervention.
+
+    Shape: 30 sites × 12 years. Half the sites enter conservation
+    management at year 5; outcome is species count.
+    """
+    rng = np.random.default_rng(_SEED + 11)
+    sites = [f"SITE{i:03d}" for i in range(30)]
+    years = pd.date_range("2013-12-31", periods=12, freq="YE")
+    treated = tuple(sites[:15])
+    intervention = years[5].date()
+
+    rows = []
+    for s in sites:
+        baseline_richness = int(rng.uniform(20, 60))
+        is_treated = s in treated
+        for y in years:
+            count = baseline_richness + int(rng.normal(0, 3))
+            if is_treated and y.date() >= intervention:
+                count += int(8 + rng.normal(0, 2))
+            rows.append(
+                {
+                    "unit_id": s,
+                    "period": y,
+                    "species_richness": int(max(0, count)),
+                    "site_area_ha": float(rng.uniform(50, 500)),
+                }
+            )
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    events = (
+        TreatmentEvent(
+            name="conservation_program",
+            treated_units=treated,
+            treatment_date=intervention,
+            dimension="site",
+        ),
+    )
+    metadata = PanelMetadata(
+        outcome_cols=("species_richness",),
+        period_kind="timestamp",
+        freq="YE",
+        dimension="site",
+        treatment_events=events,
+        weights_col="site_area_ha",
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic",
+            license="MIT",
+            citation="factor-factory cross-domain fixture",
+        ),
+    )
+    df = _attach_treatment_columns(df, events, period_kind="timestamp")
+    return Panel(df.sort_index(), metadata)
+
+
+def network_diffusion_panel() -> Panel:
+    """User × week adoption of a feature spreading via social network.
+
+    Shape: 200 users × 16 weeks. Influence cascade: 10 'seed' users
+    adopt at week 0; rest adopt with probability proportional to
+    their treated-neighbor count. Outcome is binary adopted flag.
+    """
+    rng = np.random.default_rng(_SEED + 12)
+    n = 200
+    users = [f"N{i:04d}" for i in range(n)]
+    weeks = pd.date_range("2024-01-07", periods=16, freq="W")
+    seeds = tuple(users[:10])
+    seed_date = weeks[0].date()
+    # Random sparse network: each user knows ~5 others
+    neighbors: dict[str, list[str]] = {u: list(rng.choice(users, 5, replace=False)) for u in users}
+
+    adoption_period: dict[str, pd.Timestamp | None] = {
+        u: weeks[0] if u in seeds else None for u in users
+    }
+
+    rows: list[dict[str, Any]] = []
+    for w in weeks:
+        for u in users:
+            adopted = adoption_period[u] is not None and adoption_period[u] <= w
+            rows.append({"unit_id": u, "period": w, "adopted": int(adopted)})
+        # Update adoptions for next week
+        for u in users:
+            if adoption_period[u] is None:
+                n_adopted_neighbors = sum(
+                    1
+                    for n in neighbors[u]
+                    if adoption_period[n] is not None and adoption_period[n] <= w
+                )
+                p = 0.05 * n_adopted_neighbors
+                if rng.random() < p:
+                    adoption_period[u] = w
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    events = (
+        TreatmentEvent(
+            name="seed_cohort",
+            treated_units=seeds,
+            treatment_date=seed_date,
+            dimension="user_id",
+        ),
+    )
+    metadata = PanelMetadata(
+        outcome_cols=("adopted",),
+        period_kind="timestamp",
+        freq="W",
+        dimension="user_id",
+        treatment_events=events,
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic SI cascade",
+            license="MIT",
+            citation="factor-factory cross-domain fixture",
+        ),
+    )
+    df = _attach_treatment_columns(df, events, period_kind="timestamp")
+    return Panel(df.sort_index(), metadata)
+
+
 __all__ = [
     "agronomic_dose_response_panel",
     "chem_assay_panel",
+    "climate_anomaly_panel",
+    "ecology_biodiversity_panel",
+    "education_value_added_panel",
+    "energy_consumption_panel",
     "finance_event_study_panel",
+    "macroeconomic_country_panel",
+    "marketing_uplift_panel",
+    "network_diffusion_panel",
     "rct_longitudinal_panel",
     "staggered_did_panel",
+    "survival_oncology_panel",
 ]

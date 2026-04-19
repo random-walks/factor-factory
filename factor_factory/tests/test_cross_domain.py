@@ -21,9 +21,17 @@ from factor_factory.tidy import Panel
 from ._fixtures.cross_domain import (
     agronomic_dose_response_panel,
     chem_assay_panel,
+    climate_anomaly_panel,
+    ecology_biodiversity_panel,
+    education_value_added_panel,
+    energy_consumption_panel,
     finance_event_study_panel,
+    macroeconomic_country_panel,
+    marketing_uplift_panel,
+    network_diffusion_panel,
     rct_longitudinal_panel,
     staggered_did_panel,
+    survival_oncology_panel,
 )
 
 
@@ -35,6 +43,14 @@ from ._fixtures.cross_domain import (
         agronomic_dose_response_panel,
         chem_assay_panel,
         staggered_did_panel,
+        survival_oncology_panel,
+        climate_anomaly_panel,
+        education_value_added_panel,
+        energy_consumption_panel,
+        marketing_uplift_panel,
+        macroeconomic_country_panel,
+        ecology_biodiversity_panel,
+        network_diffusion_panel,
     ],
 )
 def test_cross_domain_panel_validates(factory) -> None:  # type: ignore[no-untyped-def]
@@ -98,9 +114,10 @@ def test_staggered_did_per_event_columns() -> None:
         assert f"treated_unit__{ev_name}" in df.columns
         assert f"post__{ev_name}" in df.columns
 
-    # Aggregate columns: union of all events
-    # Every unit is treated by exactly one event, so treated_unit == 1 everywhere
-    assert (df["treated_unit"] == 1).all()
+    # Aggregate columns: union of all events. Three quarters of units are
+    # treated by some event; the remaining quarter is never-treated.
+    treated_unit_share = df["treated_unit"].mean()
+    assert 0.7 < treated_unit_share < 0.8  # ~0.75
     # treatment is sum across events; since events are disjoint, max value is 1 (binary)
     assert df["treatment"].max() == 1
     assert df["treatment"].dtype == np.int8

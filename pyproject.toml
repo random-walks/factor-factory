@@ -41,7 +41,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Engine families — each pulls in its own canonical implementations.
-did = ["linearmodels>=6.0"]
+did = ["linearmodels>=6.0", "differences>=0.2"]
 rdd = ["rdrobust>=1.3"]
 scm = ["pysyncon>=1.4"]
 changepoint = ["ruptures>=1.1", "bayesloop>=1.5"]
@@ -51,10 +51,20 @@ inequality = ["inequality>=1.0"]
 spatial = ["esda>=2.5", "libpysal>=4.10", "spreg>=1.4"]
 reporting-bias = []
 hawkes = ["tick>=0.7"]
+survival = ["lifelines>=0.27"]
+event-study = []  # baseline implementation is dependency-free
+het-te = ["econml>=0.15"]  # causal forests, X/T/S/R-learners
+dml = ["DoubleML>=0.7"]  # cross-fit double ML
+mediation = []  # statsmodels.stats.mediation is in default install transitively
+climate = ["xclim>=0.50", "pymannkendall>=1.4"]
+diffusion = ["ndlib>=5.1"]
+# sdid — no mature Python implementation; flagged as "experimental"
+# until cvxpy-backed homegrown adapter lands.
 
-# Aggregator — installs every engine family.
+# Aggregator — installs every engine family currently shippable.
 all = [
     "linearmodels>=6.0",
+    "differences>=0.2",
     "rdrobust>=1.3",
     "pysyncon>=1.4",
     "ruptures>=1.1",
@@ -67,6 +77,12 @@ all = [
     "libpysal>=4.10",
     "spreg>=1.4",
     "tick>=0.7",
+    "lifelines>=0.27",
+    "econml>=0.15",
+    "DoubleML>=0.7",
+    "xclim>=0.50",
+    "pymannkendall>=1.4",
+    "ndlib>=5.1",
 ]
 
 # Dev tooling — ships with the package source, not on PyPI.
@@ -150,6 +166,8 @@ exclude = ["factor_factory/tests/.*", "factor_factory/jellycell/_templates/.*"]
 # we actually import today — v0.2+ engine PRs add their own entries.
 module = [
     "linearmodels.*",
+    "differences.*",
+    "lifelines.*",
     "scipy.*",
     "shapely.*",
     "matplotlib.*",

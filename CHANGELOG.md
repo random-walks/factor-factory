@@ -87,26 +87,65 @@
     showcase skeleton (jellycell.toml, notebook stub, manuscripts,
     data plan).
   - `factor-factory` console script as a shorter alias.
+- **Engine families (v0.2 brought forward into v0.1):**
+  - `engines.did.callaway_santanna` — Callaway-Sant'Anna staggered-DiD
+    adapter via the `differences` package. The right tool when TWFE
+    suffers from negative-weights bias (Goodman-Bacon 2021).
+    Auto-converts timestamp panels to integer rank-encoded periods.
+  - `engines.survival.kaplan_meier` — non-parametric Kaplan-Meier
+    survival curve with median + confidence bands via `lifelines`.
+    Returns the full curve in `result.survival_curve`.
+  - `engines.survival.cox_ph` — Cox proportional-hazards regression
+    with hazard ratios, Wald p-values, 95% CIs, plus per-covariate
+    Schoenfeld residual proportional-hazards test. Robust SEs
+    available via `cluster=`.
+  - `engines.event_study.market_adjusted` — abnormal returns / CAR /
+    cross-sectional t-test using never-treated units as the
+    benchmark. Domain-agnostic (works for any "single-date jolt"
+    analysis: M&A, FDA approvals, regulatory announcements,
+    earnings).
+  - `engines.event_study` Result dataclass exposes per-event-time AR
+    curves and per-unit cumulative abnormal returns.
 - **Cross-domain conformance fixtures** —
-  `factor_factory.tests._fixtures.cross_domain` ships five synthetic
-  panels exercising every generalization axis:
+  `factor_factory.tests._fixtures.cross_domain` ships **thirteen**
+  synthetic panels covering nearly every analytical domain:
   - `finance_event_study_panel()` — multi-outcome (returns + abnormal
     returns), business-day periods, market-cap weights.
   - `rct_longitudinal_panel()` — multi-arm categorical events,
-    integer outcome (adverse-events count).
+    integer outcome (adverse-events count), IRB ethics note.
   - `agronomic_dose_response_panel()` — continuous treatment
-    intensity, plot-area weights.
-  - `chem_assay_panel()` — `period_kind="float"`, no time, no
-    treatment events.
-  - `staggered_did_panel()` — three binary events at different dates,
-    exercises per-event columns.
+    intensity, plot-area weights, semi-annual freq.
+  - `chem_assay_panel()` — `period_kind="float"` (μM concentrations),
+    no time, no treatment events.
+  - `staggered_did_panel()` — three binary events at different dates
+    + never-treated controls, exercises per-event columns.
+  - `survival_oncology_panel()` — 200-patient cohort with
+    right-censored survival, age + ECOG covariates.
+  - `climate_anomaly_panel()` — station × month, temperature
+    anomalies, "heat dome" regime-shift event.
+  - `education_value_added_panel()` — student × quarterly
+    assessment, tutoring intervention.
+  - `energy_consumption_panel()` — household × month, kWh, opt-in
+    rebate program.
+  - `marketing_uplift_panel()` — user × week A/B test, multi-arm
+    categorical (control / variant_a / variant_b), conversion outcome.
+  - `macroeconomic_country_panel()` — country × year GDP growth,
+    population weights, fiscal-policy event.
+  - `ecology_biodiversity_panel()` — site × year species richness,
+    site-area weights, conservation-program event.
+  - `network_diffusion_panel()` — user × week SI cascade with seed
+    cohort, spreading via random social network.
 - **Repo scaffolding**:
-  - `pyproject.toml` with optional extras stubbed for every Phase-2
-    engine family.
+  - `pyproject.toml` with optional extras for all current + planned
+    engine families: `did`, `rdd`, `scm`, `changepoint`, `stl`,
+    `panel-reg`, `inequality`, `spatial`, `reporting-bias`, `hawkes`,
+    `survival`, `event-study`, `het-te`, `dml`, `mediation`, `climate`,
+    `diffusion`. Reserved namespaces in `engines/` for each.
   - GitHub Actions: `pytest` (3.12 + 3.13), `ruff` (lint + format
     check), `mypy` (strict).
-  - 76 tests across panel contract, diagnostics, geography, DiD
-    conformance, jellycell integration, cross-domain fixtures, and
+  - **93 tests** across panel contract, diagnostics, geography, DiD
+    conformance (TWFE + CS), survival (KM + Cox PH), event study,
+    jellycell integration, thirteen cross-domain fixtures, and
     multi-event treatment semantics.
 - **Documentation**:
   - `docs/getting-started.md` — install, scaffold, build a Panel
@@ -114,6 +153,9 @@
     DiD, render manuscripts.
   - `docs/design-contracts.md` — the canonical data-shape contract
     factor-factory commits to.
+  - `docs/supported-domains.md` — explicit matrix of supported
+    domains, partial-fit domains, frontier-method extension slots,
+    and out-of-scope areas.
   - `docs/jellycell-integration.md`.
   - This CHANGELOG.
 
@@ -147,12 +189,22 @@
 ### Notes
 
 - Default install ships only tidy + diagnostics + jellycell (plus
-  scaffolding). `factor-factory[did]` adds linearmodels for the TWFE
-  engine.
-- Engine fan-out (Callaway-Sant'Anna, Sun-Abraham,
-  Borusyak-Jaravel-Spiess for DiD; rdrobust for RDD; pysyncon for
-  SCM; etc.) lands per-release in v0.2+, one family at a time, per
-  the [implementation plan](docs/og_context/02_implementation_plan.md).
+  scaffolding). `factor-factory[did]` adds linearmodels + differences
+  for the TWFE + Callaway-Sant'Anna engines; `factor-factory[survival]`
+  adds lifelines for KM + Cox PH; `factor-factory[event-study]` is
+  dependency-free.
+- Phase-2 engine fan-out is partially shipped already: CS DiD,
+  Survival (KM, Cox PH), and Event Study were pulled forward into
+  v0.1 since v0.1 isn't released yet. Remaining Phase-2 families
+  (Sun-Abraham, BJS, rdrobust, pysyncon, ruptures, sktime/prophet,
+  pyfixest, theil, esda/libpysal/spreg, reporting-bias EM, Hawkes,
+  het-te causal forests, DoubleML, SDID, mediation, climate, diffusion)
+  land per-release in v0.2+, one family at a time, per the
+  [implementation plan](docs/og_context/02_implementation_plan.md).
+- See [`docs/supported-domains.md`](docs/supported-domains.md) for
+  the full matrix of which domains the framework covers today, which
+  fit partially, and which are deliberately out of scope (GWAS,
+  streaming, deep learning).
 
 ## v0.0.0 — Phase 0 design (2026)
 
