@@ -916,11 +916,67 @@ def rdd_sharp_cutoff_panel() -> Panel:
     return Panel(df, meta, record_view=panel._record_view)
 
 
+def scm_single_treated_state_panel() -> Panel:
+    """Classic Abadie SCM shape: one treated state, many donor states.
+
+    25 states × 30 years. Treatment at year 15 for 'CA'. Ground-truth
+    ATT = 3.0 (level shift post-treatment).
+    """
+    from datetime import date
+
+    rng = np.random.default_rng(_SEED + 11)
+    states = [f"S{i:02d}" for i in range(24)] + ["CA"]
+    n_years = 30
+    treatment_year = 15
+
+    records: list[dict[str, Any]] = []
+    for s in states:
+        trend = rng.normal(0, 0.2)  # state-specific trend
+        level = rng.normal(10, 2)
+        for t in range(n_years):
+            y = level + trend * t + rng.normal(0, 0.5)
+            if s == "CA" and t >= treatment_year:
+                y += 3.0
+            # Replicate each observation as a single "record" — one per state-year.
+            records.append({"state": s, "period": date(2000 + t, 1, 1), "outcome": y})
+
+    panel = Panel.from_records(
+        records,
+        dimension="state",
+        freq="YE",
+        period_kind="timestamp",
+        outcome_col="n",
+        treatment_events=(
+            TreatmentEvent(
+                name="policy",
+                treated_units=("CA",),
+                treatment_date=date(2015, 1, 1),
+                dimension="state",
+            ),
+        ),
+    )
+    # Attach outcome=y column from the aggregation.
+    df = panel.df.copy()
+    # from_records counts records; we need mean outcome instead.
+    outcome_df = (
+        pd.DataFrame(records)
+        .assign(period=lambda d: pd.to_datetime(d["period"]))
+        .assign(period=lambda d: d["period"].dt.to_period("Y").dt.to_timestamp("Y"))
+        .groupby(["state", "period"])["outcome"]
+        .mean()
+    )
+    outcome_df.index.names = ["unit_id", "period"]
+    df["y"] = outcome_df.reindex(df.index).to_numpy()
+    meta = panel.metadata.model_copy(update={"outcome_cols": ("y",)})
+    return Panel(df, meta)
+
+
 # Ground-truth values for cross-domain fixtures (tests assert these).
 FIXTURE_GROUND_TRUTH: dict[str, dict[str, float]] = {
     "rdd_sharp_cutoff_panel": {"jump": 2.0, "cutoff": 60.0},
     "mediation_panel": {"cde": 2.0, "pie": 1.5, "int_med": 0.45, "int_ref": 0.15},
     "sdid_block_treatment_panel": {"att": 4.0},
+    "scm_single_treated_state_panel": {"att": 3.0},
     "small_treatment_effect_panel": {"att": 5.0},
 }
 
