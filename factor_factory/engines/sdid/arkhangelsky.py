@@ -162,9 +162,7 @@ class SyntheticDidEngine:
             )
             inference_method = "placebo"
         else:
-            raise ValueError(
-                f"inference must be 'jackknife' or 'placebo', got {inference!r}."
-            )
+            raise ValueError(f"inference must be 'jackknife' or 'placebo', got {inference!r}.")
         # 95% CI via normal approximation (per AER §3.4)
         lo = att - 1.96 * se
         hi = att + 1.96 * se

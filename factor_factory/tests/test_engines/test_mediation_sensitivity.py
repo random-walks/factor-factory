@@ -33,8 +33,14 @@ def test_sensitivity_linear_linear_shape() -> None:
     result = _mk_result()
     df = result.sensitivity(rho_range=(-0.3, 0.3), n_points=7)
     assert len(df) == 7
-    assert {"rho", "cde_adjusted", "int_ref_adjusted", "int_med_adjusted",
-            "pie_adjusted", "total_effect_adjusted"} <= set(df.columns)
+    assert {
+        "rho",
+        "cde_adjusted",
+        "int_ref_adjusted",
+        "int_med_adjusted",
+        "pie_adjusted",
+        "total_effect_adjusted",
+    } <= set(df.columns)
 
 
 def test_sensitivity_at_rho_zero_returns_unchanged() -> None:
