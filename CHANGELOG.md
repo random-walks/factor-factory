@@ -92,20 +92,49 @@
     adapter via the `differences` package. The right tool when TWFE
     suffers from negative-weights bias (Goodman-Bacon 2021).
     Auto-converts timestamp panels to integer rank-encoded periods.
+    *Citation: Callaway, B., & Sant'Anna, P. H. C. (2021). Difference-
+    in-differences with multiple time periods. Journal of
+    Econometrics, 225(2), 200–230.*
   - `engines.survival.kaplan_meier` — non-parametric Kaplan-Meier
     survival curve with median + confidence bands via `lifelines`.
     Returns the full curve in `result.survival_curve`.
+    *Citation: Kaplan, E. L., & Meier, P. (1958). Nonparametric
+    estimation from incomplete observations. JASA, 53(282), 457–481.*
   - `engines.survival.cox_ph` — Cox proportional-hazards regression
     with hazard ratios, Wald p-values, 95% CIs, plus per-covariate
     Schoenfeld residual proportional-hazards test. Robust SEs
-    available via `cluster=`.
+    available via `cluster=`. *Citation: Cox, D. R. (1972).
+    Regression models and life-tables. JRSS:B, 34(2), 187–202.*
   - `engines.event_study.market_adjusted` — abnormal returns / CAR /
     cross-sectional t-test using never-treated units as the
     benchmark. Domain-agnostic (works for any "single-date jolt"
     analysis: M&A, FDA approvals, regulatory announcements,
-    earnings).
+    earnings). *Citation: MacKinlay, A. C. (1997). Event Studies in
+    Economics and Finance. JEL, 35(1), 13–39.*
   - `engines.event_study` Result dataclass exposes per-event-time AR
     curves and per-unit cumulative abnormal returns.
+- **Two Python-ecosystem gap-closers:** novel adapters that
+  implement methods with no maintained Python equivalent.
+  - `engines.sdid.SyntheticDidEngine` — **Synthetic
+    Difference-in-Differences** (Arkhangelsky, Athey, Hirshberg,
+    Imbens, Wager 2021, *American Economic Review*). Homegrown
+    implementation via scipy QP for unit + time weights, weighted DiD
+    for the ATT, and jackknife inference (per AER §3.4). The R
+    `synthdid` package is canonical; before this commit no first-class
+    Python implementation existed (only partial ports like `pysdid`).
+    *Citation: Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens,
+    G. W., & Wager, S. (2021). AER, 111(12), 4088–4118.
+    https://doi.org/10.1257/aer.20190159*
+  - `engines.mediation.FourWayMediationEngine` — **Four-way mediation
+    decomposition** (VanderWeele 2014, *Epidemiology*). Decomposes the
+    total effect into Controlled Direct Effect / Reference Interaction
+    / Mediated Interaction / Pure Indirect Effect, with bootstrap
+    inference. The R `CMAverse` package is the reference; no
+    maintained Python equivalent existed before this commit
+    (`mediation` on PyPI is stale; `statsmodels.stats.mediation` only
+    handles the simpler Imai-Keele-Tingley two-component decomposition).
+    *Citation: VanderWeele, T. J. (2014). Epidemiology, 25(5),
+    749–761. https://doi.org/10.1097/EDE.0000000000000121*
 - **Cross-domain conformance fixtures** —
   `factor_factory.tests._fixtures.cross_domain` ships **thirteen**
   synthetic panels covering nearly every analytical domain:
@@ -135,6 +164,15 @@
     site-area weights, conservation-program event.
   - `network_diffusion_panel()` — user × week SI cascade with seed
     cohort, spreading via random social network.
+  - `sdid_block_treatment_panel()` — 50 units × 30 years with 5
+    treated units adopting a policy at year 20; heterogeneous unit
+    trends so vanilla DiD is biased and SDID's re-weighting earns
+    its keep.
+  - `mediation_panel()` — 1000-subject cross-section with binary
+    treatment, continuous mediator, continuous outcome, one
+    covariate; constructed with **known** ground-truth components
+    (CDE=2.0, PIE=1.5, INTmed=0.45, INTref≈0.15) so the four-way
+    decomposition can be sanity-checked.
 - **Repo scaffolding**:
   - `pyproject.toml` with optional extras for all current + planned
     engine families: `did`, `rdd`, `scm`, `changepoint`, `stl`,
@@ -143,10 +181,10 @@
     `diffusion`. Reserved namespaces in `engines/` for each.
   - GitHub Actions: `pytest` (3.12 + 3.13), `ruff` (lint + format
     check), `mypy` (strict).
-  - **93 tests** across panel contract, diagnostics, geography, DiD
+  - **112 tests** across panel contract, diagnostics, geography, DiD
     conformance (TWFE + CS), survival (KM + Cox PH), event study,
-    jellycell integration, thirteen cross-domain fixtures, and
-    multi-event treatment semantics.
+    SDID, four-way mediation, jellycell integration, fifteen
+    cross-domain fixtures, and multi-event treatment semantics.
 - **Documentation**:
   - `docs/getting-started.md` — install, scaffold, build a Panel
     (with cross-domain examples for finance, RCT, ag, chem), run
@@ -155,8 +193,13 @@
     factor-factory commits to.
   - `docs/supported-domains.md` — explicit matrix of supported
     domains, partial-fit domains, frontier-method extension slots,
-    and out-of-scope areas.
+    SDID + Four-way Mediation flagged as Python-ecosystem
+    gap-closers, plus a detailed rationale for why GWAS / biobank-
+    scale genetics is **deliberately** out of scope.
   - `docs/jellycell-integration.md`.
+  - Per-engine docstrings include the canonical paper citation +
+    DOI + reference-implementation URLs (R `synthdid`, R `CMAverse`)
+    so analysts can verify the math.
   - This CHANGELOG.
 
 ### Fixed

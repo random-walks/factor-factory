@@ -20,18 +20,19 @@ in [`getting-started.md`](getting-started.md).
 
 | Domain | Fixture | Panel shape | Treatment shape | Engines |
 |---|---|---|---|---|
-| **NYC-civic / public policy** | `staggered_did_panel`, `synthetic_panels.*` | community-district × month-end | binary, multi-event staggered | DiD: `twfe`, `cs` |
+| **NYC-civic / public policy** | `staggered_did_panel`, `synthetic_panels.*` | community-district × month-end | binary, multi-event staggered | DiD: `twfe`, `cs`, `sdid` |
 | **Finance / event study** | `finance_event_study_panel` | ticker × business day, multi-outcome (returns, abnormal) | binary event with weights (market cap) | DiD `twfe`, EventStudy `market_adjusted` |
-| **Population health / RCTs** | `rct_longitudinal_panel`, `survival_oncology_panel` | patient × visit-week (longitudinal), patient × single-row (survival) | categorical multi-arm; right-censored | Survival `kaplan_meier`, `cox_ph`; DiD `twfe` per arm |
+| **Population health / RCTs** | `rct_longitudinal_panel`, `survival_oncology_panel`, `mediation_panel` | patient × visit-week (longitudinal), patient × single-row (survival), subject × baseline (mediation) | categorical multi-arm; right-censored; binary + mediator | Survival `kaplan_meier`, `cox_ph`; Mediation `four_way`; DiD `twfe` per arm |
 | **Agriculture / dose-response** | `agronomic_dose_response_panel` | plot × season, area weights | continuous intensity (kg/ha) | DiD `twfe` (continuous treatment column) |
 | **Chemistry / pharmacology** | `chem_assay_panel` | compound × concentration (μM, float period_kind) | optional dose-threshold binary event | (analyst-fit dose-response curves; engine fan-out v0.2+) |
-| **Climate / environmental science** | `climate_anomaly_panel` | station × month-end, anomalies vs. baseline | binary "heat dome" / regime-shift event | DiD `twfe`, `cs` |
-| **Education / value-added** | `education_value_added_panel` | student × quarterly assessment | binary intervention (tutoring, curriculum change) | DiD `twfe`, `cs` |
-| **Energy / utilities** | `energy_consumption_panel` | household × month, kWh outcome | binary opt-in program (rebate, smart-thermostat) | DiD `twfe`, `cs` |
-| **Marketing / A-B testing** | `marketing_uplift_panel` | user × week, conversion outcome | categorical multi-arm (control / variant_a / variant_b) | per-arm `twfe` (uplift-test adapter v0.2+) |
-| **Macroeconomics / cross-country** | `macroeconomic_country_panel` | country × year, GDP-growth outcome, population weights | binary policy adoption (fiscal, monetary) | DiD `twfe`, `cs` |
-| **Ecology / conservation** | `ecology_biodiversity_panel` | site × year, species-richness outcome, area weights | binary conservation intervention | DiD `twfe`, `cs` |
+| **Climate / environmental science** | `climate_anomaly_panel` | station × month-end, anomalies vs. baseline | binary "heat dome" / regime-shift event | DiD `twfe`, `cs`, `sdid` |
+| **Education / value-added** | `education_value_added_panel` | student × quarterly assessment | binary intervention (tutoring, curriculum change) | DiD `twfe`, `cs`; Mediation `four_way` |
+| **Energy / utilities** | `energy_consumption_panel` | household × month, kWh outcome | binary opt-in program (rebate, smart-thermostat) | DiD `twfe`, `cs`, `sdid` |
+| **Marketing / A-B testing** | `marketing_uplift_panel` | user × week, conversion outcome | categorical multi-arm (control / variant_a / variant_b) | per-arm `twfe`, Mediation `four_way` |
+| **Macroeconomics / cross-country** | `macroeconomic_country_panel`, `sdid_block_treatment_panel` | country × year, GDP-growth outcome, population weights | binary policy adoption (fiscal, monetary) | DiD `twfe`, `cs`, `sdid` |
+| **Ecology / conservation** | `ecology_biodiversity_panel` | site × year, species-richness outcome, area weights | binary conservation intervention | DiD `twfe`, `cs`, `sdid` |
 | **Network / social diffusion** | `network_diffusion_panel` | user × week, binary adoption outcome | seed cohort spreading via SI cascade | DiD `twfe`; diffusion engines `ndlib` v0.2+ |
+| **Causal mediation (any domain)** | `mediation_panel` | subject × single-row with A, M, Y, C | binary treatment + mediator (binary or continuous) | Mediation `four_way` (VanderWeele 2014) |
 
 ## Domains where the framework partially fits today
 
@@ -50,14 +51,16 @@ dedicated engine adapter. Pull requests welcome.
 
 ## Frontier-method extension slots
 
-Stubbed in `pyproject.toml` extras + reserved engine namespaces:
+Stubbed in `pyproject.toml` extras + reserved engine namespaces. The
+two highlighted SDID and Mediation slots ship today: they close
+genuine Python-ecosystem gaps where no maintained equivalent exists.
 
 | Extra | Engine namespace | What it adds | Status |
 |---|---|---|---|
+| (no extra) | `engines.sdid` | **Synthetic DiD** (Arkhangelsky, Athey, Hirshberg, Imbens, Wager, *AER* 2021) — homegrown via scipy QP + jackknife inference; no mature Python pkg before this | **shipped (`SyntheticDidEngine`)** |
+| (no extra) | `engines.mediation` | **Four-way mediation decomposition** (VanderWeele, *Epidemiology* 2014) — CDE / INTref / INTmed / PIE for linear-linear models with bootstrap inference; no maintained Python equivalent before this | **shipped (`FourWayMediationEngine`)** |
 | `factor-factory[het-te]` | `engines.het_te` | EconML / causalml — causal forests, X/T/S/R-learners, IV forests | reserved |
 | `factor-factory[dml]` | `engines.dml` | DoubleML — cross-fit double ML over arbitrary nuisance learners | reserved |
-| (no extra) | `engines.sdid` | Synthetic DiD (Arkhangelsky 2021) — homegrown cvxpy adapter, no mature Python pkg yet | experimental |
-| (no extra) | `engines.mediation` | NDE / NIE / total-effect via `statsmodels.stats.mediation` (in default install) | reserved |
 | `factor-factory[climate]` | `engines.climate` | xclim climatological-baseline helpers, Mann-Kendall trend test | reserved |
 | `factor-factory[diffusion]` | `engines.diffusion` | ndlib SI / SIR / threshold-model / Bass-diffusion fits | reserved |
 
@@ -115,12 +118,66 @@ rather than forking the panel concept.
 
 Listed so the absence is explicit, not accidental.
 
-- **GWAS / biobank-scale genetics.** Different ops world: HPC,
-  BGEN/VCF formats, JVM-backed `hail`. The panel pattern doesn't
-  pay off when row count is in the billions. Use `hail`, `pysnptools`,
-  or `BOLT-LMM` directly.
-- **Streaming / online algorithms.** factor-factory assumes
-  finite, materializable panels.
+### GWAS / biobank-scale quantitative genetics
+
+**Decision: do not ship a first-class engine.**
+
+Statistical genetics at biobank scale is a fundamentally different
+ops world from the analyses factor-factory targets:
+
+- **Data scale.** A modern GWAS analyzes ~10⁶–10⁷ SNPs across
+  ~10⁵–10⁶ subjects. The (subject × SNP) "panel" is in the tens of
+  billions of cells; the in-memory `Panel` abstraction is wrong by
+  three to five orders of magnitude. Materializing it would either
+  OOM or require a chunked-iterator design that doesn't match the
+  rest of the framework.
+- **File formats.** Inputs are PLINK BED/BIM/FAM, BGEN, VCF, or
+  more recently sparse pgen — none of which the existing
+  `Panel.from_records` ingestion path is designed to handle. PLINK
+  files alone require a C-extension reader (`pysnptools`,
+  `bed-reader`).
+- **Runtime ops.** Linkage-disequilibrium pruning, principal-component
+  adjustment for population structure, and per-SNP mixed-model
+  regression are typically run on HPC clusters with multi-day
+  walltimes. The dominant production stack is `hail` (Spark/JVM, ~2 GB
+  install, distributed by design) and `BOLT-LMM` (single-binary C++
+  with custom file formats). Wrapping these inside a Python framework
+  doesn't add value over calling them directly.
+- **Inference shape.** The genetics community has converged on
+  per-SNP summary statistics + post-hoc meta-analysis (`METAL`,
+  `LDSC`, `MR-Base`), not per-study Result dataclasses. The
+  factor-factory Result-class pattern doesn't fit.
+
+**What we recommend instead.** For small-N quantitative-trait analysis
+that fits in memory (~hundreds of variants, ~thousands of subjects),
+use `statsmodels.regression.mixed_linear_model.MixedLM` directly. For
+biobank-scale work, use the established stack:
+
+- [`hail`](https://hail.is/) — Broad Institute, Spark-backed, the
+  modern de-facto standard for biobank GWAS.
+- [`pysnptools`](https://github.com/fastlmm/PySnpTools) — Microsoft
+  Research, lightweight PLINK BED reader; pairs well with
+  `MixedLM` for teaching-scale analyses.
+- [`limix`](https://github.com/limix/limix) — single-trait and
+  multi-trait mixed-model GWAS, lightly maintained but a reasonable
+  Python-native option for small-to-medium N.
+- [`scikit-allel`](https://scikit-allel.readthedocs.io/) —
+  population-genetics summary stats (allele frequencies, LD,
+  haplotype diversity).
+- [PLINK 2.0](https://www.cog-genomics.org/plink/2.0/) and
+  [BOLT-LMM](https://alkesgroup.broadinstitute.org/BOLT-LMM/) —
+  industry-standard CLI tools for production runs.
+
+If a future analysis bridges the two worlds (e.g., post-GWAS
+mediation analysis on summary statistics), the right pattern is to
+load summary stats into a flat factor-factory `Panel` of (variant,
+trait) and apply the existing engines — not to push native genetic
+file formats inside the framework.
+
+### Other deliberate exclusions
+
+- **Streaming / online algorithms.** factor-factory assumes finite,
+  materializable panels.
 - **Deep learning.** PyTorch / JAX / TensorFlow stay separate. Engines
   may *call* into these (e.g., DoubleML with neural nuisance learners
   via econml) but factor-factory itself is statistical / classical.

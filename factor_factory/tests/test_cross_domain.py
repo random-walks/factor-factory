@@ -28,8 +28,10 @@ from ._fixtures.cross_domain import (
     finance_event_study_panel,
     macroeconomic_country_panel,
     marketing_uplift_panel,
+    mediation_panel,
     network_diffusion_panel,
     rct_longitudinal_panel,
+    sdid_block_treatment_panel,
     staggered_did_panel,
     survival_oncology_panel,
 )
@@ -51,6 +53,8 @@ from ._fixtures.cross_domain import (
         macroeconomic_country_panel,
         ecology_biodiversity_panel,
         network_diffusion_panel,
+        sdid_block_treatment_panel,
+        mediation_panel,
     ],
 )
 def test_cross_domain_panel_validates(factory) -> None:  # type: ignore[no-untyped-def]

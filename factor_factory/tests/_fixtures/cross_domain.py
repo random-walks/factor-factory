@@ -763,6 +763,122 @@ def network_diffusion_panel() -> Panel:
     return Panel(df.sort_index(), metadata)
 
 
+def sdid_block_treatment_panel() -> Panel:
+    """Single-block treatment panel for Synthetic DiD.
+
+    Shape: 50 units × 30 years. Five treated units adopt a policy at
+    year 20; remaining 45 are never-treated controls. True ATT = 4.0.
+    Pre-treatment trends differ across units (heterogeneous fixed
+    effects + linear trends) so vanilla DiD is biased; SDID's
+    re-weighting recovers the true effect.
+    """
+    rng = np.random.default_rng(_SEED + 13)
+    units = [f"S{i:02d}" for i in range(50)]
+    years = pd.date_range("1995-12-31", periods=30, freq="YE")
+    treated = tuple(units[:5])
+    onset_year = years[20].date()
+    true_att = 4.0
+
+    rows = []
+    for u in units:
+        unit_fe = float(rng.normal(0.0, 2.0))
+        unit_trend = float(rng.normal(0.05, 0.02))
+        is_treated = u in treated
+        for i, y in enumerate(years):
+            outcome = 10.0 + unit_fe + unit_trend * i + rng.normal(0.0, 1.0)
+            if is_treated and y.date() >= onset_year:
+                outcome += true_att
+            rows.append({"unit_id": u, "period": y, "outcome": float(outcome)})
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    events = (
+        TreatmentEvent(
+            name="block_policy",
+            treated_units=treated,
+            treatment_date=onset_year,
+            dimension="state",
+        ),
+    )
+    metadata = PanelMetadata(
+        outcome_cols=("outcome",),
+        period_kind="timestamp",
+        freq="YE",
+        dimension="state",
+        treatment_events=events,
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic",
+            license="MIT",
+            citation="factor-factory cross-domain fixture",
+        ),
+    )
+    df = _attach_treatment_columns(df, events, period_kind="timestamp")
+    return Panel(df.sort_index(), metadata)
+
+
+def mediation_panel() -> Panel:
+    """Cross-sectional mediation analysis: A → M → Y with known coefficients.
+
+    Shape: 1000 subjects × 1 row each. Binary treatment ``A``,
+    continuous mediator ``M``, continuous outcome ``Y`` plus one
+    covariate. True parameters (so the four-way decomposition can be
+    sanity-checked):
+
+    Mediator:  M = 0.5 + 1.5 · A + 0.2 · C + ε  (β₁ = 1.5)
+    Outcome:   Y = 1.0 + 2.0 · A + 1.0 · M + 0.3 · A·M + 0.1 · C + ε
+               (θ₁ = 2.0, θ₂ = 1.0, θ₃ = 0.3)
+
+    Closed-form true components (per VanderWeele 2014, linear-linear):
+
+    - CDE(0)  = θ₁ = 2.0
+    - PIE     = θ₂ · β₁ = 1.5
+    - INTmed  = θ₃ · β₁ = 0.45
+    - INTref  = θ₃ · E[M | A=0, C̄] ≈ 0.3 · (0.5 + 0.2 · 0) = 0.15
+    - Total   = 2.0 + 0.15 + 0.45 + 1.5 = 4.10
+    """
+    rng = np.random.default_rng(_SEED + 14)
+    n = 1000
+    subjects = [f"SUBJ{i:05d}" for i in range(n)]
+    A = rng.integers(0, 2, size=n).astype(float)
+    C = rng.normal(0.0, 1.0, size=n)
+    M = 0.5 + 1.5 * A + 0.2 * C + rng.normal(0.0, 0.5, size=n)
+    Y = 1.0 + 2.0 * A + 1.0 * M + 0.3 * A * M + 0.1 * C + rng.normal(0.0, 0.5, size=n)
+    enrol_date = pd.Timestamp("2024-01-31")
+
+    rows = []
+    for i, subj in enumerate(subjects):
+        rows.append(
+            {
+                "unit_id": subj,
+                "period": enrol_date,
+                "treatment": int(A[i]),
+                "mediator": float(M[i]),
+                "outcome": float(Y[i]),
+                "covariate": float(C[i]),
+            }
+        )
+    df = pd.DataFrame(rows).set_index(["unit_id", "period"]).sort_index()
+
+    metadata = PanelMetadata(
+        outcome_cols=("outcome",),
+        period_kind="timestamp",
+        freq="ME",
+        dimension="subject_id",
+        treatment_events=(),
+        record_count=len(df),
+        provenance=Provenance(
+            data_source="synthetic",
+            license="MIT",
+            ethics_note="Synthetic data; no human subjects.",
+            citation=(
+                "factor-factory cross-domain fixture; truth-tracking "
+                "VanderWeele 2014 four-way decomposition."
+            ),
+        ),
+    )
+    return Panel(df.sort_index(), metadata)
+
+
 __all__ = [
     "agronomic_dose_response_panel",
     "chem_assay_panel",
@@ -773,8 +889,10 @@ __all__ = [
     "finance_event_study_panel",
     "macroeconomic_country_panel",
     "marketing_uplift_panel",
+    "mediation_panel",
     "network_diffusion_panel",
     "rct_longitudinal_panel",
+    "sdid_block_treatment_panel",
     "staggered_did_panel",
     "survival_oncology_panel",
 ]
