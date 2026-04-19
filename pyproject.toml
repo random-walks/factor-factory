@@ -101,6 +101,9 @@ docs = [
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    "pytest-benchmark>=4.0",
+    "pytest-regressions>=2.5",
+    "hypothesis>=6.100",
     "ruff>=0.6",
     "mypy>=1.10",
     "pandas-stubs",
@@ -130,6 +133,11 @@ packages = ["factor_factory"]
 minversion = "8.0"
 addopts = "-ra -q --strict-markers"
 testpaths = ["factor_factory/tests"]
+markers = [
+    "property: hypothesis-backed property tests (opt-in)",
+    "benchmark: pytest-benchmark performance tests (opt-in)",
+    "snapshot: pytest-regressions snapshot tests (opt-in)",
+]
 filterwarnings = [
     "error",
     # linearmodels / lifelines / differences interplay throws a few benign deprecation noises
