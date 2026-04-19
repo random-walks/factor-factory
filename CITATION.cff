@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+title: factor-factory
+message: >
+  If you use factor-factory in academic work, please cite the canonical
+  papers for the specific engine adapters you use (listed in each
+  adapter's docstring and in docs/references.bib) in addition to this
+  software record.
+type: software
+authors:
+  - name: random-walks
+repository-code: https://github.com/random-walks/factor-factory
+url: https://factor-factory.readthedocs.io
+license: MIT
+keywords:
+  - panel-data
+  - econometrics
+  - difference-in-differences
+  - synthetic-control
+  - synthetic-did
+  - four-way-mediation
+  - causal-inference
+  - jellycell
+preferred-citation:
+  type: software
+  title: "factor-factory: A domain-agnostic factor-model + analysis-pipeline framework"
+  authors:
+    - name: random-walks
+  url: https://github.com/random-walks/factor-factory
+  notes: >
+    factor-factory ships first-class Python implementations of two
+    causal-inference methods that the Python ecosystem was previously
+    missing entirely: Synthetic Difference-in-Differences (Arkhangelsky
+    et al. 2021, AER) and the Four-way Mediation Decomposition
+    (VanderWeele 2014, Epidemiology). If you use these engines,
+    please cite the canonical papers in addition to this software record.

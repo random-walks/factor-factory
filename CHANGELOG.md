@@ -1,6 +1,58 @@
 # Changelog
 
-## v0.1.0 — Phase 1 skeleton (in progress)
+All notable changes are documented here per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+**Versioning policy:** patch bumps are cheap. Lean toward frequent small
+releases. See [`docs/development/releasing.md`](docs/development/releasing.md)
+and [`.claude/skills/release-bump.md`](.claude/skills/release-bump.md) for
+the patch / minor / major rubric. Contract invariants (Panel / Engine
+Protocol / Tearsheet JSON) are documented in
+[`docs/reference/contracts.md`](docs/reference/contracts.md); breaking any
+of them requires a major bump post-1.0.
+
+## [Unreleased]
+
+### Added
+
+- 16-batch post-v0.1 roadmap in `docs/og_context/06_post_v0.1_roadmap.md`.
+- `.claude/` — agents (`engine-reviewer`, `contract-auditor`), commands
+  (`/bump`, `/engine-status`, `/contract-check`, `/add-engine`,
+  `/release-check`), skills (`engine-protocol`, `piggyback-first`,
+  `fixture-parity`, `release-bump`, `tearsheet-json-contract`),
+  `launch.json`, `settings.local.json`.
+- `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `Makefile`,
+  `scripts/preview_tearsheet.sh`, `scripts/extract_release_notes.py`.
+- `CLAUDE.md` promoted from stub to dense one-pager.
+- **Sphinx + Read the Docs site** — `docs/conf.py` (furo + myst-parser +
+  autodoc2 + sphinx-design + sphinx-copybutton + sphinx-llms-txt),
+  `.readthedocs.yaml`, `docs/index.md` landing page, `docs/reference/`
+  (architecture.md, contracts.md with SNAPSHOT_VERSION="1.0.0",
+  piggyback-map.md), `docs/development/` (5 pages), `docs/cookbook/`
+  (7 per-adapter stubs), `docs/references.bib` (17 canonical citations).
+- **PyPI release infrastructure** — `.github/workflows/release.yml`
+  (OIDC trusted publisher, `build` → `publish` → `github-release`),
+  `scripts/extract_release_notes.py`, `CITATION.cff`.
+- `uv.lock` — 232 packages, first lockfile committed. CI switches to
+  `uv.lock`-aware cached installs.
+- `docs` extras group in pyproject.toml with pinned Sphinx stack.
+- New CI job `docs` running `sphinx-build -W --keep-going` + HTML artifact.
+
+### Changed
+
+- Default-dependency `jellycell[server]>=1.3,<2` → `>=1.3.5,<2` to
+  guarantee jellycell #16 (setup-cache), #17 (figure path-only),
+  #18 (--project), #19 (jc.table), #20 (tearsheet tag filtering),
+  #22 (kernel-iopub diagnostics) are available.
+
+### Contracts
+
+- Contract snapshots frozen at `SNAPSHOT_VERSION="1.0.0"` in
+  `docs/reference/contracts.md` — Panel shape + all 5 shipping Engine
+  Protocols (DiD / Survival / EventStudy / SDID / Mediation) + Tearsheet
+  JSON schema. Future changes that touch these schemas bump the snapshot
+  version and log a `### Contracts` entry here.
+
+## [0.1.0] — Phase 1 skeleton (in progress)
 
 ### Added
 
@@ -249,9 +301,13 @@
   fit partially, and which are deliberately out of scope (GWAS,
   streaming, deep learning).
 
-## v0.0.0 — Phase 0 design (2026)
+## [0.0.0] — Phase 0 design (2026)
 
 - `docs/og_context/` — design rationale, architecture, implementation
   plan, per-layer specs, downstream-change roadmap, RFC template.
 - LICENSE (MIT), `pyproject.toml` placeholder, `README.md`,
   `AGENTS.md`, `CLAUDE.md` (delegating to AGENTS.md).
+
+[unreleased]: https://github.com/random-walks/factor-factory/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/random-walks/factor-factory/releases/tag/v0.1.0
+[0.0.0]: https://github.com/random-walks/factor-factory/commits/v0.0.0
