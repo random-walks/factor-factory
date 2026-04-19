@@ -1,0 +1,27 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# jellycell — commit cache manifests (small JSON provenance), drop blobs/state
+**/.jellycell/cache/blobs/
+**/.jellycell/cache/state.db
+**/.jellycell/cache/assets/
+**/site/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
