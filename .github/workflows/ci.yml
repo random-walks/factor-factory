@@ -27,8 +27,8 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
       - name: Create venv
         run: uv venv --python ${{ matrix.python-version }} .venv
-      - name: Install dependencies (default + did + dev)
-        run: uv pip install -e ".[did,dev]"
+      - name: Install dependencies (default + did + survival + event-study + dev)
+        run: uv pip install -e ".[did,survival,event-study,dev]"
       - name: Run pytest
         run: uv run --no-project pytest -v
 
@@ -66,6 +66,6 @@ jobs:
       - name: Create venv
         run: uv venv --python 3.12 .venv
       - name: Install dependencies
-        run: uv pip install -e ".[did,dev]"
+        run: uv pip install -e ".[did,survival,event-study,dev]"
       - name: mypy
         run: uv run --no-project mypy factor_factory
