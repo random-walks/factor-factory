@@ -18,6 +18,11 @@ try:
 except ImportError:  # pragma: no cover
     pass
 
+# BCF is homegrown (sklearn only) — always available.
+from .bcf import BcfEngine  # noqa: E402
+
+_engines["bcf"] = BcfEngine()
+
 registry: EngineRegistry[HetTeEngine] = EngineRegistry(_engines)
 
 

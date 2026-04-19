@@ -14,8 +14,12 @@ from ...tidy.panel import Panel
 from .._registry import EngineRegistry
 from ._base import ScmEngine, ScmResult
 from .augmented import AugmentedScmEngine
+from .matrix_completion import MatrixCompletionEngine
 
-_engines: dict[str, ScmEngine] = {"augmented": AugmentedScmEngine()}
+_engines: dict[str, ScmEngine] = {
+    "augmented": AugmentedScmEngine(),
+    "matrix_completion": MatrixCompletionEngine(),
+}
 
 try:
     from .pysyncon_adapter import PysynconEngine
