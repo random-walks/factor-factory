@@ -1,12 +1,19 @@
-"""``setup()`` — workaround for jellycell #J1 (cache-skip footgun).
+"""``setup()`` — per-cell import helper for scaffolded notebooks.
 
-Upstream bug filed as `random-walks/jellycell` #10. The docs claim
-``# %% tags=["jc.setup"]`` cells are not cached; in practice they are,
-and the imports they declare don't survive into subsequent re-executed
-cells. This module's ``setup()`` returns the imports as a dict the cell
-unpacks locally, sidestepping the cache-scope bug entirely.
+Historical note: this helper was originally introduced as a workaround
+for a jellycell cache-scope bug (``jc.setup``-tagged cells got cached
+and their imports didn't survive re-executed cells), filed as
+`random-walks/jellycell` #10. That issue **shipped in jellycell 1.3.2**
+(``jc.setup`` cells are never cached). Our pin floor
+(``jellycell[server]>=1.3.5``) guarantees the upstream fix.
 
-Intended usage (canonical pattern enforced by the scaffolded notebooks):
+We keep ``setup()`` as the canonical per-cell import pattern for
+scaffolded notebooks: it returns the imports as a dict, giving every
+cell a self-contained, reproducible namespace regardless of jellycell
+version or cache state. It is stable public API — downstream callers
+don't need to track jellycell minor-version churn.
+
+Intended usage (enforced by the scaffolded notebooks):
 
 ```python
 # %% tags=["jc.load", "name=panel"]
@@ -34,11 +41,13 @@ def setup(
 ) -> dict[str, Any]:
     """Return a dict of imports for unpacking at the top of every cell.
 
-    Workaround for the jellycell upstream bug
-    (`random-walks/jellycell` #10) where ``# %% tags=["jc.setup"]``
-    cells get cached and their imports do not survive into subsequent
-    re-executed cells. Calling ``setup()`` from any cell guarantees the
-    imports are in scope regardless of cache state.
+    The canonical per-cell import pattern for scaffolded showcase
+    notebooks. Each cell calls ``setup()`` and unpacks the returned
+    dict locally, giving every cell a self-contained, reproducible
+    namespace — independent of jellycell cache state or version.
+
+    (Historically a workaround for `random-walks/jellycell` #10, fixed
+    upstream in jellycell 1.3.2. Retained as stable public API.)
 
     Parameters
     ----------
