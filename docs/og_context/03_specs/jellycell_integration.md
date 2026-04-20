@@ -240,7 +240,9 @@ with v0.1) and enforced by the scaffolded notebooks:
 4. **Pre-rendered figures** go via `factor_factory.jellycell.figure.from_path`.
 5. **Generated figures** go via `jc.figure(path, fig=plt.gcf(), ...)`
    following the standard jellycell API.
-6. **Cell deps** declared via `tags=["jc.step", "name=foo", "deps=bar,baz"]`.
+6. **Cell deps** declared via `tags=["jc.step", "name=foo", "deps=bar", "deps=baz"]`
+   (one `deps=` tag per upstream dep — nbformat rejects commas inside tags,
+   enforced by jellycell's `deps-no-comma` lint rule as of 1.4.0).
 7. **Manuscripts** auto-generated via the tearsheet renderers
    wherever possible; only `MANUSCRIPT.md` (the long-form
    working-paper) stays hand-authored.

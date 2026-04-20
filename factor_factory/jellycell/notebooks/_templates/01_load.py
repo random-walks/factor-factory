@@ -96,7 +96,7 @@ plt.close(fig)
 print("saved artifacts/figures/parallel_trends.png")
 
 
-# %% tags=["jc.step", "name=tearsheets", "deps=did,trends"]
+# %% tags=["jc.step", "name=tearsheets", "deps=did", "deps=trends"]
 from factor_factory.jellycell.cells import setup
 
 ns = setup()
