@@ -12,6 +12,19 @@ of them requires a major bump post-1.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Authoritative authorship across package metadata** to match the sibling
+  `random-walks` NYC libraries: `Authored by [Blaise Albis-Burdige](https://blaiseab.com/).`
+  line in the README, `authors = [{ name = "Blaise Albis-Burdige" }]` in
+  `pyproject.toml`, and matching author arrays in `CITATION.cff`.
+- **Standard open-source infra files** mirrored from the sibling NYC repos:
+  `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md` (private
+  vulnerability reporting via `blaise@buenaola.io`), `.github/CODEOWNERS`,
+  `.github/dependabot.yml` (weekly Actions updates), `.github/release.yml`
+  (GitHub release-notes filter that excludes bot authors), and
+  `.github/ISSUE_TEMPLATE/{bug_report.yml,feature_request.yml,config.yml}`.
+
 ### Fixed
 
 - **`test_causal_forest_if_econml`**: econml 0.16+ enforces

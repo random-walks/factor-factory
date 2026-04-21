@@ -1,0 +1,57 @@
+name: Bug report
+description:
+  Report a reproducible problem with the factor-factory package, CLI, docs, or
+  examples.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+        Please include enough detail for someone else to reproduce the issue.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+      placeholder: The estimator fails with an error when...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description:
+        Share the exact steps, command, or code path that reproduces the issue.
+      placeholder: |
+        1. Install `factor-factory[...]`
+        2. Build a Panel with ...
+        3. Run `estimate(panel, methods=(...,))`
+        4. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description:
+        Include Python version, install extra set, OS, and the version of any
+        upstream engine package (linearmodels, econml, lifelines, etc.) that
+        is relevant to the bug.
+      placeholder: Python 3.12, `factor-factory[did,survival]`, macOS 15, econml 0.16...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Paste stack traces, tearsheet output, or screenshots if they help.
