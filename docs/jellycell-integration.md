@@ -179,6 +179,43 @@ the factor-factory renderers for the five canonical manuscripts; use
 per-subgroup findings, per-sensitivity-check audit pages) that live
 outside the fixed five.
 
+Scaffolded notebooks ship **both patterns, in two separate cells**,
+so every new showcase has a working reference for each:
+
+```python
+# %% tags=["jc.step", "name=tearsheets", "deps=did", "deps=trends"]
+# Canonical five — fixed-schema manuscripts driven from on-disk artifacts.
+from factor_factory.jellycell import tearsheets
+for name in ("methodology", "diagnostics", "findings", "manuscript", "audit"):
+    getattr(tearsheets, name)("<project>", overwrite=True)
+
+
+# %% tags=["jc.step", "name=adhoc_tearsheets", "deps=did"]
+# Ad-hoc / in-memory — upstream jellycell.tearsheets.* (1.4.0+).
+import json
+from pathlib import Path
+import jellycell.tearsheets as jt
+
+did_records = json.loads(Path("artifacts/did_results.json").read_text())
+did_by_method = {r.get("method", "est"): {k: v for k, v in r.items() if k != "method"}
+                 for r in did_records}
+
+jt.findings(
+    results=did_by_method,
+    out_path="manuscripts/_adhoc/findings_inline.md",
+    project="<project>",
+    template_overrides={"author": "<project>"},
+)
+```
+
+`jt.findings(results, *, out_path, project, template_overrides)` writes
+a byte-stable manuscript when the `template_overrides` header is
+pinned. `jt.methodology(spec, …)` takes an ordered
+`{section_title: markdown_body}` mapping. `jt.audit(notebook, *,
+out_path)` renders a per-notebook cell-by-cell tearsheet (different
+shape from our `audit.py` which renders AUDIT.md from project state —
+both are useful in different contexts).
+
 An end-to-end example of the **in-memory** pattern lives in the
 [nyc-geo-toolkit boundary-explorer
 showcase](https://github.com/random-walks/nyc-geo-toolkit/tree/main/examples/boundary-explorer-tearsheet)
