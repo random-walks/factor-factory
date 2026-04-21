@@ -59,10 +59,11 @@ make release-check     # preflight for tag push
 ## Claude slash-commands (`.claude/commands/`)
 
 - `/engine-status` — 18-family roadmap progress
-- `/bump [patch|minor|major]` — bump `_version.py` + roll CHANGELOG
+- `/bump [patch|minor|major]` — bump `_version.py` + roll CHANGELOG (stops before commit)
 - `/contract-check` — diff-audit against the three contracts
 - `/add-engine <family>` — scaffold a new engine family
-- `/release-check` — preflight for tag push
+- `/release-check` — preflight for tag push (no side effects)
+- `/release [patch|minor|major] [--direct]` — full preflight + bump + commit + tag + open release PR (default); `--direct` pushes main + tag instead (needs permission rule)
 
 ## Skills (`.claude/skills/`) — always loaded as reminders
 
