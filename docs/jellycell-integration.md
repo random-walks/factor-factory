@@ -32,7 +32,9 @@ one shot.
 > **Upstream status:** all six jellycell issues (#10–#15) that
 > motivated the `cells` / `figure` shims and `pyarrow` default dep
 > are **closed** as of jellycell 1.3.5. Our pin floor
-> (`jellycell[server]>=1.3.5,<2`) guarantees every fix is present.
+> (`jellycell[server]>=1.4.0,<2`) guarantees every fix is present
+> and unlocks the generic `jellycell.tearsheets.*` in-notebook API
+> (shipped in jellycell 1.4.0).
 > The shims stay — they're stable surface area; upstream churn is
 > insulated from downstream consumers.
 
@@ -228,7 +230,7 @@ All six original upstream issues landed:
 | [jellycell#14](https://github.com/random-walks/jellycell/issues/14) — `jc.table` mixed-type inference | closed | jellycell 1.3.4 |
 | [jellycell#15](https://github.com/random-walks/jellycell/issues/15) — tearsheet artifact filtering | closed | jellycell 1.3.5 |
 
-Our pin floor (`jellycell[server]>=1.3.5,<2`) guarantees every fix
+Our pin floor (`jellycell[server]>=1.4.0,<2`) guarantees every fix
 is present. The `cells.setup()` and `figure.from_path()` shims are
 **retained deliberately** as stable public API — they insulate
 downstream consumers from any future jellycell cache/API churn.

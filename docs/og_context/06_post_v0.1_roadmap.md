@@ -51,15 +51,16 @@ Ship **frequently and small** — aim for ~1–2 releases per week during the en
 
 ### 0.4 Jellycell integration pin
 
-Factor-factory depends on `jellycell[server]>=1.3.5,<2`. The `1.3.5` floor is load-bearing because it contains:
+Factor-factory depends on `jellycell[server]>=1.4.0,<2`. The `1.4.0` floor is load-bearing because it contains:
 
-- **#16** — `setup` cells are never cached (our `cells.setup()` workaround #J1 relies on this).
-- **#17** — `jc.figure` path-only form (our `figure.from_path()` helper relies on this).
-- **#18** — `run` + `export` honor `--project` (the scaffold CLI's monorepo support relies on this).
-- **#19** — `jc.table` ergonomics + pyarrow default.
-- **#20** — tearsheet tag filtering (our per-engine tearsheet templates depend on this for scoping).
-- **#22** — kernel-iopub hang diagnostics + retry.
-- **#23** — docs/examples audit.
+- **#16** (shipped 1.3.2) — `setup` cells are never cached (our `cells.setup()` workaround #J1 relies on this).
+- **#17** (shipped 1.3.2) — `jc.figure` path-only form (our `figure.from_path()` helper relies on this).
+- **#18** (shipped 1.3.3) — `run` + `export` honor `--project` (the scaffold CLI's monorepo support relies on this).
+- **#19** (shipped 1.3.4) — `jc.table` ergonomics + pyarrow default.
+- **#20** (shipped 1.3.5) — tearsheet tag filtering (our per-engine tearsheet templates depend on this for scoping).
+- **#22** (shipped 1.3.5) — kernel-iopub hang diagnostics + retry.
+- **#23** (shipped 1.3.5) — docs/examples audit.
+- **#24/#25** (shipped 1.4.0) — `jellycell.tearsheets.*` Python API + `deps-no-comma` lint rule. The new tearsheets API is surfaced in scaffolded notebooks alongside factor_factory's five fixed-schema renderers (complementary: in-memory ad-hoc tearsheets vs. disk-driven canonical manuscripts).
 
 Any turnkey jellycell-adjacent code we ship (tearsheet renderers, scaffold CLI, `cells.setup()`) should gate on this floor. Set it in `pyproject.toml` default-dependencies **and** in the scaffold-emitted `pyproject.toml.j2` template so downstream showcases inherit it.
 

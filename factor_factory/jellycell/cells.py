@@ -5,7 +5,7 @@ for a jellycell cache-scope bug (``jc.setup``-tagged cells got cached
 and their imports didn't survive re-executed cells), filed as
 `random-walks/jellycell` #10. That issue **shipped in jellycell 1.3.2**
 (``jc.setup`` cells are never cached). Our pin floor
-(``jellycell[server]>=1.3.5``) guarantees the upstream fix.
+(``jellycell[server]>=1.4.0``) guarantees the upstream fix.
 
 We keep ``setup()`` as the canonical per-cell import pattern for
 scaffolded notebooks: it returns the imports as a dict, giving every

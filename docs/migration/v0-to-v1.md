@@ -5,17 +5,21 @@ v0.x → v1.0 journey (batches 0–16 on `feat/v1.0-roadmap`) were **additive**
 and require no downstream code changes. The handful of surface changes
 worth noting are below.
 
-## Pinned floor: jellycell >= 1.3.5
+## Pinned floor: jellycell >= 1.4.0
 
-If your showcase pins `jellycell`, bump to `>=1.3.5,<2`. v1.3.5 contains
-multiple fixes factor-factory's jellycell integration relies on:
+If your showcase pins `jellycell`, bump to `>=1.4.0,<2`. The floor
+contains every fix factor-factory's jellycell integration has ever
+relied on, plus the generic `jellycell.tearsheets.*` in-notebook API
+introduced in 1.4.0 (complementary to factor_factory's five fixed-
+schema renderers):
 
-- `setup`-cell never caching (jellycell #16) — factor_factory.jellycell.cells.setup
-- `jc.figure` path-only form (jellycell #17) — factor_factory.jellycell.figure.from_path
-- `run` / `export` honor `--project` (jellycell #18)
-- `jc.table` ergonomics + pyarrow default (jellycell #19)
-- tearsheet tag filtering (jellycell #20) — per-engine tearsheet scoping
-- kernel-iopub hang diagnostics (jellycell #22)
+- `setup`-cell never caching (jellycell #16, shipped 1.3.2) — factor_factory.jellycell.cells.setup
+- `jc.figure` path-only form (jellycell #17, shipped 1.3.2) — factor_factory.jellycell.figure.from_path
+- `run` / `export` honor `--project` (jellycell #18, shipped 1.3.3)
+- `jc.table` ergonomics + pyarrow default (jellycell #19, shipped 1.3.4)
+- tearsheet tag filtering (jellycell #20, shipped 1.3.5) — per-engine tearsheet scoping
+- kernel-iopub hang diagnostics (jellycell #22, shipped 1.3.5)
+- `jellycell.tearsheets.*` Python API + `deps-no-comma` lint rule (jellycell #24/#25, shipped 1.4.0)
 
 ## Additive API additions (no migration required)
 

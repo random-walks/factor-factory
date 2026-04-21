@@ -42,7 +42,7 @@ Run `/engine-status` to see the live status.
 
 ## Jellycell pin
 
-Default deps pin `jellycell[server]>=1.3.5,<2`. Any turnkey integration work (tearsheet renderers, `cells.setup()` workaround, scaffold CLI) must stay compatible with this floor. See roadmap §0.4.
+Default deps pin `jellycell[server]>=1.4.0,<2`. Any turnkey integration work (tearsheet renderers, `cells.setup()` workaround, scaffold CLI) must stay compatible with this floor — which admits upstream `jellycell.tearsheets.*` (1.4.0+) alongside factor_factory's five fixed-schema renderers. See roadmap §0.4.
 
 ## Dev commands
 

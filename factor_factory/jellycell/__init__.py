@@ -16,7 +16,7 @@ Plus the ``scaffold`` command under ``notebooks._scaffold``.
 
 All jellycell upstream issues (#10–#15) that motivated the original
 ``cells`` / ``figure`` shims have shipped upstream (jellycell 1.3.2 →
-1.3.5). Our pin floor (``jellycell[server]>=1.3.5``) guarantees every
+1.3.5). Our pin floor (``jellycell[server]>=1.4.0``) guarantees every
 fix is present. The shims stay — they're stable public API that
 insulates downstream callers from jellycell minor-version churn.
 """

@@ -4,7 +4,7 @@ Historical note: this helper was originally introduced as a workaround
 for upstream jellycell's lack of a path-only ``jc.figure`` API, filed
 as `random-walks/jellycell` #11. That issue **shipped in jellycell
 1.3.2** and ``jellycell.api.figure(path, ...)`` now works without a
-mandatory ``fig=`` argument. Our pin floor (``jellycell[server]>=1.3.5``)
+mandatory ``fig=`` argument. Our pin floor (``jellycell[server]>=1.4.0``)
 guarantees the upstream fix is present.
 
 We keep ``from_path()`` as a stable public API surface so downstream
@@ -52,7 +52,7 @@ def from_path(
         register = getattr(jc, "register_figure", None) or getattr(jc, "figure", None)
         if register is not None:
             # Be tolerant of older jellycell signatures that required ``fig=``;
-            # our pin floor (1.3.5) ships the path-only API, but keep the
+            # our pin floor (1.4.0) ships the path-only API, but keep the
             # suppress so the shim stays robust if a caller overrides the pin.
             with contextlib.suppress(TypeError):
                 register(
