@@ -269,13 +269,22 @@ with v0.1) and enforced by the scaffolded notebooks:
 - **Once jellycell ships the upstream fixes (#J1, #J2)**: do we
   deprecate `cells.setup()` and `figure.from_path()`? Or keep them
   as the canonical entry points to insulate consumers from
-  jellycell version churn? Default: keep them; they're the stable
-  surface area.
+  jellycell version churn? **Resolved (2026-04-20):** keep them.
+  jellycell 1.3.2 shipped both fixes (#J1/#10, #J2/#11) and 1.3.5
+  closed the rest of #J3–#J6. Our shims stay as stable public API;
+  consumers don't have to track jellycell minor-version churn. See
+  `docs/jellycell-integration.md` → "Coordinated upstream items".
 - **Tearsheet template customization**: how flexible should the
   templates be? Should they support per-project overrides via
   `<project>/manuscripts/_templates/*.md.j2`? Defer until we've
   shipped the v0.1 templates and seen what consumers actually
-  override.
+  override. **Partial answer (2026-04-20):** jellycell 1.4.0
+  shipped a generic `jellycell.tearsheets.*` API for ad-hoc
+  in-notebook tearsheets with a `template_overrides=` header-pin
+  knob; that covers the per-result customization story. The
+  factor-factory renderers stay fixed-schema for the five canonical
+  showcase manuscripts, with a `<!-- tearsheet:freeze -->` splice
+  marker for hand-edited sections.
 - **R-style report generation**: should we offer Quarto / RMarkdown-
   style reports as well as jellycell? Defer indefinitely; that's a
   different rendering pipeline.

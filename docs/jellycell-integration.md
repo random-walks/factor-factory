@@ -9,13 +9,18 @@ manuscript renderers, and the `scaffold` command.
 
 Three loadbearing reasons:
 
-1. **Workaround for jellycell #J1** (`jc.setup` cells get cached,
-   their imports vanish on re-execute). `cells.setup()` returns the
-   imports as a dict the cell unpacks locally — sidesteps the cache
-   scope bug entirely.
-2. **Workaround for jellycell #J2** (`jc.figure(path)` requires
-   `fig=plt.gcf()`). `figure.from_path()` is the path-only entry
-   point that registers the artifact and emits the IPython display.
+1. **Stable per-cell import helper** (`cells.setup()`). Returns the
+   imports as a dict the cell unpacks locally so every cell has a
+   self-contained, reproducible namespace regardless of jellycell
+   cache state. Originally a workaround for a jellycell cache-scope
+   bug (`random-walks/jellycell` #10); that bug shipped upstream in
+   jellycell 1.3.2, but we keep the helper as the canonical pattern
+   because it's stable surface area downstream can lean on.
+2. **Path-only figure registration** (`figure.from_path()`).
+   Convenience wrapper for registering a pre-rendered PNG without
+   having to pass `fig=plt.gcf()`. Originally a workaround for
+   `random-walks/jellycell` #11 (shipped 1.3.2); retained as stable
+   public API.
 3. **Manuscript scaffolding**. Five canonical templates
    (METHODOLOGY, DIAGNOSTICS_CHECKLIST, FINDINGS, MANUSCRIPT, AUDIT)
    that every showcase has previously hand-authored. `tearsheets.*`
@@ -24,6 +29,13 @@ Three loadbearing reasons:
 Plus the `scaffold` command, which spins up a complete project in
 one shot.
 
+> **Upstream status:** all six jellycell issues (#10–#15) that
+> motivated the `cells` / `figure` shims and `pyarrow` default dep
+> are **closed** as of jellycell 1.3.5. Our pin floor
+> (`jellycell[server]>=1.3.5,<2`) guarantees every fix is present.
+> The shims stay — they're stable surface area; upstream churn is
+> insulated from downstream consumers.
+
 ## Conventions
 
 Showcase notebooks built against factor-factory follow these rules.
@@ -31,8 +43,7 @@ Each is enforced by the scaffolded `notebooks/01_load.py` stub.
 
 ### 1. Always start cells with `setup()`
 
-Never rely on `# %% tags=["jc.setup"]` cells (jellycell #J1 makes them
-unreliable). Inline the imports per cell:
+Inline the imports per cell via `setup()`:
 
 ```python
 # %% tags=["jc.load", "name=panel"]
@@ -43,8 +54,9 @@ jc, pd, np, plt, Image = ns["jc"], ns["pd"], ns["np"], ns["plt"], ns["Image"]
 
 `setup()` returns a dict with `jc`, `pd`, `np`, `Image` always
 present, plus any `also=` aliases parsed as `<module> [as <alias>]`
-strings. Verbose, yes — but it's the only pattern that survives the
-upstream cache-scope bug.
+strings. Verbose, but every cell is self-contained and reproducible
+— no dependence on what an earlier cell happens to have imported or
+whether jellycell's cache chose to re-run it.
 
 ### 2. Headline numbers via `jc.save`
 
@@ -62,9 +74,11 @@ counts, etc.). Don't over-fragment.
 jc.table(df, name="balance", caption="Pre-treatment SMDs")
 ```
 
-`jc.table` writes parquet by default and requires `pyarrow` —
-factor-factory ships pyarrow in default deps so this works out of
-the box (workaround for jellycell #J4).
+`jc.table` writes parquet by default and requires `pyarrow`.
+factor-factory ships `pyarrow` in default deps so this works out of
+the box. (Upstream jellycell 1.3.4 also started shipping `pyarrow`
+as a default dep — we keep ours regardless; it's a genuine
+factor-factory requirement for `Panel` parquet round-trips.)
 
 ### 4. Pre-rendered figures via `from_path`
 
@@ -92,11 +106,15 @@ jc.figure("artifacts/figures/scatter.png", fig=fig, caption="...")
 
 ```python
 # %% tags=["jc.step", "name=did", "deps=panel"]
+# multiple upstream deps: one deps= tag per dep
+# %% tags=["jc.step", "name=tearsheets", "deps=did", "deps=trends"]
 ```
 
 The `deps=panel` declaration means jellycell re-runs this cell when
-the upstream `name=panel` cell changes. Lint-friendly via
-`pnpm showcase:lint`.
+the upstream `name=panel` cell changes. **Do not** comma-separate
+values inside a single tag — nbformat's tag schema rejects commas
+(`^[^,]+$` per tag). Upstream jellycell 1.4.0 catches this
+automatically via the `deps-no-comma` auto-fixable lint rule.
 
 ### 7. Manuscripts via `tearsheets.*`
 
@@ -140,6 +158,30 @@ The renderers' default project-dir resolution looks for
 `<cwd>/<project>/jellycell.toml`; pass `output_path=` explicitly if
 you want to write somewhere else.
 
+## When to use upstream `jellycell.tearsheets` instead
+
+Jellycell 1.4.0 added a **generic in-notebook tearsheet API** —
+`jellycell.tearsheets.findings(results_dict, …)`,
+`jellycell.tearsheets.methodology(sections_dict, …)`, and
+`jellycell.tearsheets.audit(notebook_path, …)`. It's orthogonal to
+the five factor-factory renderers above, and both coexist:
+
+| Use… | When |
+|---|---|
+| `factor_factory.jellycell.tearsheets.*` | You're building a **showcase project** scaffolded by `factor-factory scaffold` (or matching its layout). You want the five canonical manuscripts auto-populated from `artifacts/*.json` + `data/*.parquet.meta.json` via fixed Jinja2 templates, with a `<!-- tearsheet:freeze -->` marker that preserves your hand-written interpretation across re-renders. |
+| `jellycell.tearsheets.*` | You have a **specific dict of results** you want to publish as a manuscript (inside a `jc.step` cell, so the rendered markdown participates in the jellycell cache graph). Works in any project layout; no `jellycell.toml` required. Callable with an arbitrary in-memory `results` dict — no filesystem-walking. |
+
+Rule of thumb: if you scaffolded with `factor-factory scaffold`, use
+the factor-factory renderers for the five canonical manuscripts; use
+`jellycell.tearsheets.*` for *additional* ad-hoc tearsheets (e.g.,
+per-subgroup findings, per-sensitivity-check audit pages) that live
+outside the fixed five.
+
+An end-to-end example of the **in-memory** pattern lives in the
+[nyc-geo-toolkit boundary-explorer
+showcase](https://github.com/random-walks/nyc-geo-toolkit/tree/main/examples/boundary-explorer-tearsheet)
+(as of its v0.4.1 alignment with jellycell 1.4.0).
+
 ## The `scaffold` command
 
 ```bash
@@ -173,25 +215,26 @@ Detects a parent `AGENTS.md` and prints a confirmation when found.
 Project-name validation: lowercase letters / digits / hyphens, must
 start with a letter, ≤ 50 chars.
 
-## Coordinated upstream items
+## Coordinated upstream items (historical)
 
-The factor-factory workarounds are intentional design choices — they
-should NOT be ripped out when jellycell ships the upstream fixes
-(`random-walks/jellycell` #10–#15). The reasons, per the spec:
+All six original upstream issues landed:
 
-- **`cells.setup()` and `figure.from_path()` are stable surface
-  area** for downstream consumers. Insulating callers from jellycell
-  version churn is the point.
-- **The five tearsheet renderers** outlive any single jellycell
-  release; the manuscript-template scaffolding is a factor-factory
-  capability regardless of jellycell internals.
-- **The scaffold command** is a factor-factory feature; jellycell's
-  own `init` doesn't and shouldn't know about factor-factory specifics
-  (panel construction, DiD engine wiring, `pyarrow` default dep).
+| Upstream issue | Status | Shipped in |
+|---|---|---|
+| [jellycell#10](https://github.com/random-walks/jellycell/issues/10) — `jc.setup` cache-skip | closed | jellycell 1.3.2 |
+| [jellycell#11](https://github.com/random-walks/jellycell/issues/11) — path-only `jc.figure` | closed | jellycell 1.3.2 |
+| [jellycell#12](https://github.com/random-walks/jellycell/issues/12) — tearsheet path resolution | closed | jellycell 1.3.3 |
+| [jellycell#13](https://github.com/random-walks/jellycell/issues/13) — `jc.table` needs `pyarrow` | closed | jellycell 1.3.4 |
+| [jellycell#14](https://github.com/random-walks/jellycell/issues/14) — `jc.table` mixed-type inference | closed | jellycell 1.3.4 |
+| [jellycell#15](https://github.com/random-walks/jellycell/issues/15) — tearsheet artifact filtering | closed | jellycell 1.3.5 |
 
-When upstream lands, the only change here is that
-`figure.from_path` can call `jc.figure(path)` directly instead of
-the current best-effort `register_figure` shim.
+Our pin floor (`jellycell[server]>=1.3.5,<2`) guarantees every fix
+is present. The `cells.setup()` and `figure.from_path()` shims are
+**retained deliberately** as stable public API — they insulate
+downstream consumers from any future jellycell cache/API churn.
+Ripping them out would be a breaking change for every showcase
+that imports them, for a one-line behavioral improvement that
+callers wouldn't notice.
 
 ## Tests
 
