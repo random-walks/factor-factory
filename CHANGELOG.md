@@ -12,13 +12,40 @@ of them requires a major bump post-1.0.
 
 ## [Unreleased]
 
-Alignment pass against upstream jellycell v1.4.0 — no public-API
-changes, consumer-stable. Jellycell 1.3.2–1.3.5 closed every one of
-the original `#10–#15` upstream issues our `factor_factory.jellycell`
+Alignment pass against upstream jellycell v1.4.0 — consumer-stable,
+no public-API changes. Jellycell 1.3.2–1.3.5 closed every one of the
+original `#10–#15` upstream issues our `factor_factory.jellycell`
 shims were built around; 1.4.0 added a generic `jellycell.tearsheets`
 in-notebook API orthogonal to our five-template showcase renderers.
-Our pin floor stays at `jellycell[server]>=1.3.5,<2` (1.4.0 already
-in-range).
+Pin floor raised from `>=1.3.5` to `>=1.4.0` so scaffolded projects
+can rely on the new upstream API being available.
+
+### Added
+
+- **Ad-hoc tearsheet cell in scaffold template**
+  (`factor_factory/jellycell/notebooks/_templates/01_load.py`). New
+  `name=adhoc_tearsheets` cell demonstrates upstream
+  `jellycell.tearsheets.*` (1.4.0+) as a complement to factor_factory's
+  five fixed-schema renderers. Writes `manuscripts/_adhoc/findings_inline.md`
+  + `methodology_inline.md` so output doesn't collide with the
+  canonical five. Rule of thumb:
+  - `factor_factory.jellycell.tearsheets.*` → the five canonical
+    showcase manuscripts (disk-driven, Jinja2, `<!-- tearsheet:freeze -->`
+    splice).
+  - `jellycell.tearsheets.*` → ad-hoc per-subgroup / per-sensitivity
+    tearsheets from an in-memory dict.
+- Regression test
+  (`test_scaffold_template_surfaces_both_tearsheet_patterns`)
+  asserting the scaffold template keeps both cells in sync.
+
+### Changed
+
+- **Pin floor raised**: default dep constraint
+  `jellycell[server]>=1.3.5,<2` → `>=1.4.0,<2`. Benign for users on
+  any modern jellycell (1.3.5→1.4.0 is additive upstream); users
+  pinned below 1.4.0 must upgrade. `uv.lock` regenerated; installed
+  jellycell bumped 1.3.5 → 1.4.0. CLAUDE.md, `docs/migration/v0-to-v1.md`,
+  and `docs/og_context/06_post_v0.1_roadmap.md` §0.4 updated.
 
 ### Fixed
 
@@ -54,9 +81,13 @@ in-range).
     each closed issue and the jellycell release that shipped it.
   - Add "When to use upstream `jellycell.tearsheets` instead" —
     routing rule for the five fixed-schema showcase renderers vs
-    upstream's generic in-notebook API. Cross-refs the nyc-geo-toolkit
-    `boundary-explorer-tearsheet` showcase as the canonical
-    in-memory pattern.
+    upstream's generic in-notebook API, with a concrete two-cell
+    code example matching what scaffolded notebooks now emit.
+    Cross-refs the nyc-geo-toolkit `boundary-explorer-tearsheet`
+    showcase as the canonical in-memory pattern. Clarifies
+    `jt.audit()` (per-notebook cell-by-cell) vs our `audit.py`
+    (project-state AUDIT.md) so readers don't conflate the two
+    "audit" names.
   - Correct the cell-deps example with the multi-`deps=` form and
     an explicit warning about nbformat's no-comma rule.
   - Drop `#J1 / #J2 / #J4` jargon (no longer meaningful now that the
