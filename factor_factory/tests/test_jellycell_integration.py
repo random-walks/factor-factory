@@ -156,8 +156,7 @@ def test_scaffold_template_surfaces_both_tearsheet_patterns() -> None:
         "(the 1.4.0 in-memory API) as the ad-hoc complement"
     )
     assert "name=adhoc_tearsheets" in load_py, (
-        "scaffold template must ship the `name=adhoc_tearsheets` cell "
-        "that drives the upstream API"
+        "scaffold template must ship the `name=adhoc_tearsheets` cell that drives the upstream API"
     )
 
 
