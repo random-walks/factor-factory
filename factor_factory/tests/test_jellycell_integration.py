@@ -133,6 +133,34 @@ def test_tearsheet_freeze_marker_preserves_tail(tmp_path: Path) -> None:
     assert "MY CUSTOM TAIL CONTENT" in new_text
 
 
+def test_scaffold_template_surfaces_both_tearsheet_patterns() -> None:
+    """01_load.py must ship both the fixed-schema and the in-memory cells.
+
+    The scaffold template demonstrates two complementary patterns:
+      - ``factor_factory.jellycell.tearsheets.*`` for the five canonical
+        showcase manuscripts (disk-driven).
+      - ``jellycell.tearsheets.*`` (jellycell 1.4.0+) for ad-hoc
+        in-memory tearsheets that live outside the fixed five.
+
+    Both must be present so every scaffolded project has a working
+    reference for each pattern (see docs/jellycell-integration.md
+    §"When to use upstream jellycell.tearsheets instead").
+    """
+    load_py = (_TEMPLATES_DIR / "01_load.py").read_text()
+    assert "from factor_factory.jellycell import tearsheets" in load_py, (
+        "scaffold template must invoke the fixed-schema renderers via "
+        "factor_factory.jellycell.tearsheets"
+    )
+    assert "import jellycell.tearsheets as jt" in load_py, (
+        "scaffold template must demonstrate upstream jellycell.tearsheets "
+        "(the 1.4.0 in-memory API) as the ad-hoc complement"
+    )
+    assert "name=adhoc_tearsheets" in load_py, (
+        "scaffold template must ship the `name=adhoc_tearsheets` cell "
+        "that drives the upstream API"
+    )
+
+
 @pytest.mark.parametrize(
     "template_path",
     _notebook_template_paths(),
