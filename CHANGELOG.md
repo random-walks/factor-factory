@@ -12,9 +12,32 @@ of them requires a major bump post-1.0.
 
 ## [Unreleased]
 
-### Added / Changed / Fixed / Deprecated / Contracts / Security
+### Added
 
-_(empty)_
+- **Authoritative authorship across package metadata** to match the sibling
+  `random-walks` NYC libraries: `Authored by [Blaise Albis-Burdige](https://blaiseab.com/).`
+  line in the README, `authors = [{ name = "Blaise Albis-Burdige" }]` in
+  `pyproject.toml`, and matching author arrays in `CITATION.cff`.
+- **Standard open-source infra files** mirrored from the sibling NYC repos:
+  `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md` (private
+  vulnerability reporting via `blaise@buenaola.io`), `.github/CODEOWNERS`,
+  `.github/dependabot.yml` (weekly Actions updates), `.github/release.yml`
+  (GitHub release-notes filter that excludes bot authors), and
+  `.github/ISSUE_TEMPLATE/{bug_report.yml,feature_request.yml,config.yml}`.
+
+### Fixed
+
+- **`test_causal_forest_if_econml`**: econml 0.16+ enforces
+  `n_estimators % subforest_size == 0` (default `subforest_size=4`).
+  The test fixture passed `n_estimators=50` which tripped the new
+  invariant — bumped to 48 (closer to 50 than 52, same statistical
+  power for ATE recovery).
+- **`test_bcf_recovers_ate_on_synthetic`**: scipy 1.17 deprecated the
+  `disp`/`iprint` options on the L-BFGS-B solver, and sklearn's
+  `LogisticRegression` still passes them. Added a targeted
+  `filterwarnings` entry for the L-BFGS-B message so the DeprecationWarning
+  stops being elevated to a test error. Drop the filter once sklearn
+  migrates.
 
 ## [1.0.2] — 2026-04-19
 

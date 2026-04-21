@@ -7,7 +7,7 @@ message: >
   software record.
 type: software
 authors:
-  - name: random-walks
+  - name: Blaise Albis-Burdige
 repository-code: https://github.com/random-walks/factor-factory
 url: https://factor-factory.readthedocs.io
 license: MIT
@@ -24,7 +24,7 @@ preferred-citation:
   type: software
   title: "factor-factory: A domain-agnostic factor-model + analysis-pipeline framework"
   authors:
-    - name: random-walks
+    - name: Blaise Albis-Burdige
   url: https://github.com/random-walks/factor-factory
   notes: >
     factor-factory ships first-class Python implementations of two

@@ -11,6 +11,8 @@
 
 A domain-agnostic factor-model + analysis-pipeline framework with a Protocol-based pluggable engine pattern, first-class [jellycell](https://github.com/random-walks/jellycell) integration, and the only production-grade Python implementations of **Synthetic Difference-in-Differences** (Arkhangelsky et al. 2021, AER) and the **Four-way Mediation Decomposition** (VanderWeele 2014, Epidemiology).
 
+Authored by [Blaise Albis-Burdige](https://blaiseab.com/).
+
 The same `Panel` shape hosts NYC-civic data, finance event studies, clinical trials, agronomic dose-response, chemistry assays, climate anomaly studies, education-intervention evaluations, energy-meter data, marketing A/B tests, macroeconomic country panels, ecological biodiversity surveys, and social-network diffusion cascades. Add a new domain by writing extractors; add a new method by writing a ~150-LOC engine adapter that fits the Protocol.
 
 ---

@@ -62,7 +62,9 @@ def test_causal_forest_if_econml() -> None:  # pragma: no cover — runs only wh
         outcome="outcome",
         treatment="treatment",
         covariates=("x1", "x2"),
-        n_estimators=50,
+        # econml 0.16+ requires n_estimators % subforest_size == 0 (default
+        # subforest_size=4), so 48 instead of 50 — same statistical power.
+        n_estimators=48,
     )
     r = results[0]
     # Should recover an ATE near 2.0.
