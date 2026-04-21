@@ -14,6 +14,16 @@ of them requires a major bump post-1.0.
 
 ### Added
 
+- **`/release` slash-command** (`.claude/commands/release.md`) — full
+  end-to-end release flow with a comprehensive preflight (clean tree,
+  up-to-date with `origin/main`, non-empty `[Unreleased]`, ruff + mypy,
+  pytest, strict Sphinx build, `hatch build`, no tag collision), then
+  rolls the version, commits, creates an annotated tag, and opens a
+  release PR against `main` by default. `--direct` flag pushes `main`
+  + tag instead for environments where that's policy. Preflight always
+  runs before any file is modified; if anything fails, the tree is
+  untouched. CLAUDE.md updated with the command listing.
+
 ### Changed
 
 ### Fixed
