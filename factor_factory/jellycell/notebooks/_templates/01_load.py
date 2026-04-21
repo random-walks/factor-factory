@@ -97,6 +97,8 @@ print("saved artifacts/figures/parallel_trends.png")
 
 
 # %% tags=["jc.step", "name=tearsheets", "deps=did", "deps=trends"]
+# Canonical five — fixed-schema manuscripts driven from on-disk artifacts.
+# Use these for the standard showcase deliverables.
 from factor_factory.jellycell.cells import setup
 
 ns = setup()
@@ -107,3 +109,58 @@ from factor_factory.jellycell import tearsheets
 for name in ("methodology", "diagnostics", "findings", "manuscript", "audit"):
     out = getattr(tearsheets, name)("__PROJECT__", overwrite=True)
     print(f"wrote {out}")
+
+
+# %% tags=["jc.step", "name=adhoc_tearsheets", "deps=did"]
+# Complement to the fixed five above: the upstream `jellycell.tearsheets.*`
+# API (jellycell 1.4.0+) is a generic in-memory renderer good for ad-hoc
+# tearsheets that live outside the canonical manuscripts — e.g., per-
+# subgroup findings, per-sensitivity audit pages, or one-off methodology
+# callouts. The output participates in the jellycell cache graph because
+# it runs inside a `jc.step`-tagged cell.
+#
+# Rule of thumb:
+#   - factor_factory.jellycell.tearsheets.* -> the five canonical showcase
+#     manuscripts (METHODOLOGY, DIAGNOSTICS_CHECKLIST, FINDINGS,
+#     MANUSCRIPT, AUDIT). Jinja2 templates; `<!-- tearsheet:freeze -->`
+#     splice marker for hand-edited sections.
+#   - jellycell.tearsheets.*                 -> anything else. Dict in,
+#     markdown out; no filesystem layout assumed.
+from factor_factory.jellycell.cells import setup
+
+ns = setup()
+jc = ns["jc"]
+
+import json
+from pathlib import Path
+
+import jellycell.tearsheets as jt
+
+did_records = json.loads(Path("artifacts/did_results.json").read_text())
+# Re-shape list-of-records -> {estimator: {metric: value}} for jt.findings.
+did_by_method: dict[str, dict[str, object]] = {
+    rec.get("method", f"est_{i}"): {
+        k: v for k, v in rec.items() if k != "method" and isinstance(v, (int, float, str))
+    }
+    for i, rec in enumerate(did_records)
+}
+
+jt.findings(
+    results=did_by_method,
+    out_path="manuscripts/_adhoc/findings_inline.md",
+    project="__PROJECT__",
+    template_overrides={"author": "__PROJECT__"},
+)
+
+jt.methodology(
+    spec={
+        "Design": "Two-way fixed effects on a synthetic panel (demo scaffold).",
+        "Identification": "Parallel-trends assumption — see DIAGNOSTICS_CHECKLIST.md for the visual check.",
+        "Estimator": "`factor_factory.engines.did.estimate(methods=('twfe',))` (wraps `linearmodels`).",
+    },
+    out_path="manuscripts/_adhoc/methodology_inline.md",
+    project="__PROJECT__",
+    template_overrides={"author": "__PROJECT__"},
+)
+
+print("wrote manuscripts/_adhoc/{findings_inline,methodology_inline}.md")
