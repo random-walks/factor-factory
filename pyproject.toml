@@ -148,6 +148,9 @@ filterwarnings = [
     "ignore::FutureWarning:lifelines",
     "ignore::DeprecationWarning:differences",
     "ignore::PendingDeprecationWarning",
+    # scipy 1.17 deprecated L-BFGS-B's `disp`/`iprint` options; sklearn
+    # still passes them from LogisticRegression. Drop when sklearn migrates.
+    "ignore:.*L-BFGS-B solver are deprecated.*:DeprecationWarning",
 ]
 
 [tool.ruff]
