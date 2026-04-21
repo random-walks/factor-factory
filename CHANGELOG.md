@@ -14,6 +14,24 @@ of them requires a major bump post-1.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Deprecated
+
+### Contracts
+
+### Security
+
+## [1.0.3] — 2026-04-21
+
+Patch: unblock the `het_te` test suite on current upstreams (econml
+0.16 / scipy 1.17) and bring the repo's author metadata + standard OSS
+infra up to parity with the sibling NYC packages.
+
+### Added
+
 - **Authoritative authorship across package metadata** to match the sibling
   `random-walks` NYC libraries: `Authored by [Blaise Albis-Burdige](https://blaiseab.com/).`
   line in the README, `authors = [{ name = "Blaise Albis-Burdige" }]` in
@@ -479,7 +497,8 @@ First stable release; first PyPI publication.
 - LICENSE (MIT), `pyproject.toml` placeholder, `README.md`,
   `AGENTS.md`, `CLAUDE.md` (delegating to AGENTS.md).
 
-[unreleased]: https://github.com/random-walks/factor-factory/compare/v1.0.2...HEAD
+[unreleased]: https://github.com/random-walks/factor-factory/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/random-walks/factor-factory/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/random-walks/factor-factory/compare/v1.0.0...v1.0.2
 [1.0.1]: https://github.com/random-walks/factor-factory/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/random-walks/factor-factory/compare/v0.1.0...v1.0.0
