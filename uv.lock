@@ -1018,7 +1018,7 @@ requires-dist = [
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
     { name = "inequality", marker = "extra == 'all'", specifier = ">=1.0" },
     { name = "inequality", marker = "extra == 'inequality'", specifier = ">=1.0" },
-    { name = "jellycell", extras = ["server"], specifier = ">=1.3.5,<2" },
+    { name = "jellycell", extras = ["server"], specifier = ">=1.4.0,<2" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "libpysal", marker = "extra == 'all'", specifier = ">=4.10" },
     { name = "libpysal", marker = "extra == 'spatial'", specifier = ">=4.10" },
@@ -1515,7 +1515,7 @@ wheels = [
 
 [[package]]
 name = "jellycell"
-version = "1.3.5"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "diskcache" },
@@ -1535,9 +1535,9 @@ dependencies = [
     { name = "tomli-w" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/59/df/c3d862876bfdae8dab0cf7bec90aee5b81d9dd139f006da74ca1afdbbf74/jellycell-1.3.5.tar.gz", hash = "sha256:883131574115658cb079970f9d27ba7d1bb0bc945a41dca887f9005ab7a2a0a3", size = 1495312, upload-time = "2026-04-19T19:31:49.845Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/17/158602ebdae4eeb5e0096eb6a397130dea94203a43ffa3f163c05b3577fc/jellycell-1.4.0.tar.gz", hash = "sha256:642019ac460df15b82fa728e2b87f4c5f21a73e3f4761f0f887f80efabd05bec", size = 1505149, upload-time = "2026-04-20T23:40:44.841Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/5f/99603697a1642f12f91f0c2ef691ad048b60cca0337d7539b415401120a5/jellycell-1.3.5-py3-none-any.whl", hash = "sha256:5e6fd56c0f4c57685bfc81ff0a0a033bac460f258cc843dd84a8dd35d42a6b30", size = 122963, upload-time = "2026-04-19T19:31:48.016Z" },
+    { url = "https://files.pythonhosted.org/packages/07/36/daf4e37b1a1d7505a231fcea96317f3babd51a92ed38087d6b5b5393311e/jellycell-1.4.0-py3-none-any.whl", hash = "sha256:e71b40507cef4cff0b490853cd7049b5a97b52f3dbcddb4c33d9297507aded7b", size = 131073, upload-time = "2026-04-20T23:40:42.723Z" },
 ]
 
 [package.optional-dependencies]

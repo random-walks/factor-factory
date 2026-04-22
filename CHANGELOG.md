@@ -12,6 +12,14 @@ of them requires a major bump post-1.0.
 
 ## [Unreleased]
 
+Alignment pass against upstream jellycell v1.4.0 — consumer-stable,
+no public-API changes. Jellycell 1.3.2–1.3.5 closed every one of the
+original `#10–#15` upstream issues our `factor_factory.jellycell`
+shims were built around; 1.4.0 added a generic `jellycell.tearsheets`
+in-notebook API orthogonal to our five-template showcase renderers.
+Pin floor raised from `>=1.3.5` to `>=1.4.0` so scaffolded projects
+can rely on the new upstream API being available.
+
 ### Added
 
 - **`/release` slash-command** (`.claude/commands/release.md`) — full
@@ -23,16 +31,83 @@ of them requires a major bump post-1.0.
   + tag instead for environments where that's policy. Preflight always
   runs before any file is modified; if anything fails, the tree is
   untouched. CLAUDE.md updated with the command listing.
+- **Ad-hoc tearsheet cell in scaffold template**
+  (`factor_factory/jellycell/notebooks/_templates/01_load.py`). New
+  `name=adhoc_tearsheets` cell demonstrates upstream
+  `jellycell.tearsheets.*` (1.4.0+) as a complement to factor_factory's
+  five fixed-schema renderers. Writes `manuscripts/_adhoc/findings_inline.md`
+  + `methodology_inline.md` so output doesn't collide with the
+  canonical five. Rule of thumb:
+  - `factor_factory.jellycell.tearsheets.*` → the five canonical
+    showcase manuscripts (disk-driven, Jinja2, `<!-- tearsheet:freeze -->`
+    splice).
+  - `jellycell.tearsheets.*` → ad-hoc per-subgroup / per-sensitivity
+    tearsheets from an in-memory dict.
+- Regression test
+  (`test_scaffold_template_surfaces_both_tearsheet_patterns`)
+  asserting the scaffold template keeps both cells in sync.
 
 ### Changed
 
+- **Pin floor raised**: default dep constraint
+  `jellycell[server]>=1.3.5,<2` → `>=1.4.0,<2`. Benign for users on
+  any modern jellycell (1.3.5→1.4.0 is additive upstream); users
+  pinned below 1.4.0 must upgrade. `uv.lock` regenerated; installed
+  jellycell bumped 1.3.5 → 1.4.0. CLAUDE.md, `docs/migration/v0-to-v1.md`,
+  and `docs/og_context/06_post_v0.1_roadmap.md` §0.4 updated.
+- **Docstrings** in `factor_factory/jellycell/{figure,cells,__init__}.py`
+  no longer describe upstream jellycell as broken. All six original
+  `random-walks/jellycell` issues are closed; the shims are retained
+  as stable public API that insulates downstream consumers from
+  jellycell minor-version churn. No behavior changes.
+
 ### Fixed
 
-### Deprecated
+- **Scaffold template `deps=` tag bug**
+  (`factor_factory/jellycell/notebooks/_templates/01_load.py`). The
+  tearsheets cell emitted `tags=["jc.step", "deps=did,trends"]`,
+  which nbformat rejects at validation time (`^[^,]+$` per tag), so
+  every scaffolded showcase tripped `NotebookValidationError` on
+  first `jellycell run`. Fixed by splitting into one `deps=` tag
+  per upstream dep: `"deps=did", "deps=trends"`. Regression test
+  (`test_scaffold_template_tags_have_no_commas`) parametrized over
+  every percent-format notebook template in `_templates/`. This
+  matches upstream jellycell 1.4.0's new auto-fixable
+  `deps-no-comma` lint rule.
+- Same wrong-form example in
+  `docs/og_context/03_specs/jellycell_integration.md` §Conventions.
+
+### Docs
+
+- `docs/jellycell-integration.md` rewritten to:
+  - Lead with the ergonomic value (per-cell import helper,
+    path-only figure convenience, five-template scaffolder) rather
+    than the historical bug-workaround framing.
+  - Add a "Coordinated upstream items (historical)" table enumerating
+    each closed issue and the jellycell release that shipped it.
+  - Add "When to use upstream `jellycell.tearsheets` instead" —
+    routing rule for the five fixed-schema showcase renderers vs
+    upstream's generic in-notebook API, with a concrete two-cell
+    code example matching what scaffolded notebooks now emit.
+    Cross-refs the nyc-geo-toolkit `boundary-explorer-tearsheet`
+    showcase as the canonical in-memory pattern. Clarifies
+    `jt.audit()` (per-notebook cell-by-cell) vs our `audit.py`
+    (project-state AUDIT.md) so readers don't conflate the two
+    "audit" names.
+  - Correct the cell-deps example with the multi-`deps=` form and
+    an explicit warning about nbformat's no-comma rule.
+  - Drop `#J1 / #J2 / #J4` jargon (no longer meaningful now that the
+    issues are closed).
+- `docs/og_context/02_implementation_plan.md` — jellycell
+  coordination note marked historical.
+- `docs/og_context/03_specs/jellycell_integration.md` — the two
+  long-standing "Open questions" about deprecating shims + template
+  customization are now resolved in-line.
 
 ### Contracts
 
-### Security
+No contract touches. Panel / Engine Protocol / Tearsheet JSON
+snapshot version unchanged.
 
 ## [1.0.3] — 2026-04-21
 

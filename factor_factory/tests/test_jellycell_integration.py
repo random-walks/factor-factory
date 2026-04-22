@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,16 @@ from factor_factory.jellycell import tearsheets
 from factor_factory.jellycell.cells import setup
 from factor_factory.jellycell.figure import from_path
 from factor_factory.jellycell.notebooks._scaffold import scaffold
+
+_TEMPLATES_DIR = Path(__file__).parent.parent / "jellycell" / "notebooks" / "_templates"
+_TAGS_LINE_RE = re.compile(r"^#\s*%%\s*tags\s*=\s*(\[.*\])\s*$", re.MULTILINE)
+
+
+def _notebook_template_paths() -> list[Path]:
+    """Scaffold .py templates that are percent-format notebooks (have `# %%` cells)."""
+    return sorted(
+        p for p in _TEMPLATES_DIR.glob("*.py") if re.search(r"^#\s*%%", p.read_text(), re.MULTILINE)
+    )
 
 
 def test_setup_returns_required_keys() -> None:
@@ -119,6 +131,60 @@ def test_tearsheet_freeze_marker_preserves_tail(tmp_path: Path) -> None:
     tearsheets.findings("demo", output_path=out_path, overwrite=True)
     new_text = out_path.read_text()
     assert "MY CUSTOM TAIL CONTENT" in new_text
+
+
+def test_scaffold_template_surfaces_both_tearsheet_patterns() -> None:
+    """01_load.py must ship both the fixed-schema and the in-memory cells.
+
+    The scaffold template demonstrates two complementary patterns:
+      - ``factor_factory.jellycell.tearsheets.*`` for the five canonical
+        showcase manuscripts (disk-driven).
+      - ``jellycell.tearsheets.*`` (jellycell 1.4.0+) for ad-hoc
+        in-memory tearsheets that live outside the fixed five.
+
+    Both must be present so every scaffolded project has a working
+    reference for each pattern (see docs/jellycell-integration.md
+    §"When to use upstream jellycell.tearsheets instead").
+    """
+    load_py = (_TEMPLATES_DIR / "01_load.py").read_text()
+    assert "from factor_factory.jellycell import tearsheets" in load_py, (
+        "scaffold template must invoke the fixed-schema renderers via "
+        "factor_factory.jellycell.tearsheets"
+    )
+    assert "import jellycell.tearsheets as jt" in load_py, (
+        "scaffold template must demonstrate upstream jellycell.tearsheets "
+        "(the 1.4.0 in-memory API) as the ad-hoc complement"
+    )
+    assert "name=adhoc_tearsheets" in load_py, (
+        "scaffold template must ship the `name=adhoc_tearsheets` cell that drives the upstream API"
+    )
+
+
+@pytest.mark.parametrize(
+    "template_path",
+    _notebook_template_paths(),
+    ids=lambda p: p.name,
+)
+def test_scaffold_template_tags_have_no_commas(template_path: Path) -> None:
+    """Regression: nbformat rejects tags containing commas.
+
+    The tag schema enforces ``^[^,]+$`` per tag, so
+    ``tags=["deps=a,b"]`` raises ``NotebookValidationError`` on first
+    ``jellycell run``. The correct form is one ``deps=`` tag per dep:
+    ``tags=["deps=a", "deps=b"]``. Upstream jellycell 1.4.0 added a
+    ``deps-no-comma`` lint rule that catches this, but our scaffold
+    templates need to ship clean from the start.
+    """
+    source = template_path.read_text()
+    matches = _TAGS_LINE_RE.findall(source)
+    assert matches, f"no `# %% tags=[...]` lines found in {template_path.name}"
+    for raw in matches:
+        tags = ast.literal_eval(raw)
+        for tag in tags:
+            assert "," not in tag, (
+                f"tag {tag!r} in {template_path.name} contains a comma; "
+                "split into one tag per value (nbformat rejects commas)."
+            )
 
 
 def test_tearsheet_freeze_marker_only_matches_line_anchored(tmp_path: Path) -> None:

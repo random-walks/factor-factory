@@ -224,11 +224,12 @@ example suite; SemVer 1.0 commitment for both nyc311 + subway-access.
 - **Backwards-compat**: in factor-factory itself, every breaking
   change in v0.x must include a CHANGELOG entry + a one-line
   migration note. Once v1.0 ships, follow strict SemVer.
-- **Coordination with jellycell**: the jellycell upstream items
-  (filed at `random-walks/jellycell` issues #10–#15) CAN be
-  addressed in parallel with factor-factory development. They don't
-  block — factor-factory's `jellycell/cells.py` and
-  `jellycell/figure.py` work around the bugs internally regardless.
+- **Coordination with jellycell** (historical, all resolved):
+  jellycell issues #10–#15 were filed alongside factor-factory's
+  v0.1 design work and addressed in parallel — all closed by
+  jellycell 1.3.5. factor-factory's `jellycell/cells.py` and
+  `jellycell/figure.py` stay as stable public-API shims (see
+  `docs/jellycell-integration.md` → "Coordinated upstream items").
 
 ## Summary timeline
 
